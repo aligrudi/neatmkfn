@@ -82,6 +82,16 @@ static void afm_read(void)
 	}
 }
 
+static char *usage =
+	"Usage: mktrfn [options] <input >output\n"
+	"Options:\n"
+	"  -o      \tread the output of otfdump for otf and ttf files (default)\n"
+	"  -a      \tread an AFM file\n"
+	"  -s      \tspecial font\n"
+	"  -p name \toverride font postscript name\n"
+	"  -t name \tset font troff name\n"
+	"  -r res  \tset device resolution (720)\n";
+
 int main(int argc, char *argv[])
 {
 	int afm = 0;
@@ -109,7 +119,7 @@ int main(int argc, char *argv[])
 			trfn_psfont(argv[i][2] ? argv[i] + 2 : argv[++i]);
 			break;
 		default:
-			printf("usage: mktrfn -a -o -t name -p psname\n");
+			printf("%s", usage);
 			return 0;
 		}
 	}
