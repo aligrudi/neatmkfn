@@ -87,6 +87,7 @@ int main(int argc, char *argv[])
 	int afm = 0;
 	int i = 1;
 	int res = 720;
+	int spc = 0;
 	for (i = 1; i < argc && argv[i][0] == '-'; i++) {
 		switch (argv[i][1]) {
 		case 'a':
@@ -97,6 +98,9 @@ int main(int argc, char *argv[])
 			break;
 		case 'r':
 			res = atoi(argv[i][2] ? argv[i] + 2 : argv[++i]);
+			break;
+		case 's':
+			spc = 1;
 			break;
 		case 't':
 			trfn_trfont(argv[i][2] ? argv[i] + 2 : argv[++i]);
@@ -109,7 +113,7 @@ int main(int argc, char *argv[])
 			return 0;
 		}
 	}
-	trfn_init(res);
+	trfn_init(res, spc);
 	if (afm)
 		afm_read();
 	else

@@ -17,6 +17,7 @@ static struct sbuf sbuf_char;	/* charset section */
 static struct sbuf sbuf_kern;	/* kernpairs section */
 static int trfn_div;		/* divisor of widths */
 static int trfn_swid;		/* space width */
+static int trfn_special;	/* special flag */
 static char trfn_ligs[1024];	/* font ligatures */
 static char trfn_trname[256];	/* font troff name */
 static char trfn_psname[256];	/* font ps name */
@@ -230,16 +231,19 @@ void trfn_print(void)
 		printf("fontname %s\n", trfn_psname);
 	printf("spacewidth %d\n", trfn_swid);
 	printf("ligatures %s 0\n", trfn_ligs);
+	if (trfn_special)
+		printf("special\n");
 	printf("charset\n");
 	printf("%s", sbuf_buf(&sbuf_char));
 	printf("kernpairs\n");
 	printf("%s", sbuf_buf(&sbuf_kern));
 }
 
-void trfn_init(int res)
+void trfn_init(int res, int spc)
 {
 	int i;
 	trfn_div = 7200 / res;
+	trfn_special = spc;
 	agl_read("glyphlist.txt");
 	sbuf_init(&sbuf_char);
 	sbuf_init(&sbuf_kern);

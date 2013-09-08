@@ -1,4 +1,4 @@
-void trfn_init(int res);
+void trfn_init(int res, int special);
 void trfn_done(void);
 void trfn_trfont(char *name);
 void trfn_psfont(char *fontname);
