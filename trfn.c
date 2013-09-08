@@ -244,7 +244,8 @@ void trfn_init(int res, int spc)
 	int i;
 	trfn_div = 7200 / res;
 	trfn_special = spc;
-	agl_read("glyphlist.txt");
+	if (agl_read("glyphlist.txt"))
+		fprintf(stderr, "mktrfn: could not open glyphlist.txt\n");
 	sbuf_init(&sbuf_char);
 	sbuf_init(&sbuf_kern);
 	tab_alts = tab_alloc(LEN(alts));
