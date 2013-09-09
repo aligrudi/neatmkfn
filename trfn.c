@@ -10,7 +10,8 @@
 #define WX(w)		(((w) < 0 ? (w) - trfn_div / 2 : (w) + trfn_div / 2) / trfn_div)
 #define LEN(a)		((sizeof(a) / sizeof((a)[0])))
 #define HEXDIGS		"0123456789abcdef"
-#define GNLEN		32
+#define NCHAR		8
+#define GNLEN		64
 #define AGLLEN		(8 * 1024)
 
 static struct sbuf sbuf_char;	/* charset section */
@@ -18,7 +19,7 @@ static struct sbuf sbuf_kern;	/* kernpairs section */
 static int trfn_div;		/* divisor of widths */
 static int trfn_swid;		/* space width */
 static int trfn_special;	/* special flag */
-static char trfn_ligs[1024];	/* font ligatures */
+static char trfn_ligs[8192];	/* font ligatures */
 static char trfn_trname[256];	/* font troff name */
 static char trfn_psname[256];	/* font ps name */
 
@@ -32,7 +33,40 @@ static struct tab *tab_agl;
 static struct tab *tab_alts;
 static struct tab *tab_ctyp;
 
-static void pututf8(char **d, int c)
+static int utf8len(int c)
+{
+	if (c > 0 && c <= 0x7f)
+		return 1;
+	if (c >= 0xfc)
+		return 6;
+	if (c >= 0xf8)
+		return 5;
+	if (c >= 0xf0)
+		return 4;
+	if (c >= 0xe0)
+		return 3;
+	if (c >= 0xc0)
+		return 2;
+	return c != 0;
+}
+
+static int utf8get(char **src)
+{
+	int result;
+	int l = 1;
+	char *s = *src;
+	if (~((unsigned char) **src) & 0xc0)
+		return (unsigned char) *(*src)++;
+	while (l < 6 && (unsigned char) *s & (0x40 >> l))
+		l++;
+	result = (0x3f >> l) & (unsigned char) *s++;
+	while (l--)
+		result = (result << 6) | ((unsigned char) *s++ & 0x3f);
+	*src = s;
+	return result;
+}
+
+static void utf8put(char **d, int c)
 {
 	int l;
 	if (c > 0xffff) {
@@ -70,7 +104,7 @@ static int hexval(char *s, int len)
 static int agl_read(char *path)
 {
 	FILE *fin = fopen(path, "r");
-	char ln[GNLEN * 8];
+	char ln[GNLEN];
 	char val[GNLEN];
 	char *s, *d;
 	int i;
@@ -85,7 +119,7 @@ static int agl_read(char *path)
 		while (s && *s) {
 			while (*s == ' ')
 				s++;
-			pututf8(&d, hexval(s, 6));
+			utf8put(&d, hexval(s, 6));
 			s = strchr(s, ' ');
 		}
 		*d = '\0';
@@ -127,15 +161,48 @@ static int achar_map(char *name)
 	return 0;
 }
 
+static int achar_shape(int c, int pjoin, int njoin)
+{
+	int i;
+	for (i = 0; i < LEN(achars); i++) {
+		struct achar *a = &achars[i];
+		if (a->c == c) {
+			if (!pjoin && !njoin)
+				return a->c;
+			if (!pjoin && njoin)
+				return a->i ? a->i : a->c;
+			if (pjoin && njoin)
+				return a->m ? a->m : a->c;
+			if (pjoin && !njoin)
+				return a->f ? a->f : a->c;
+		}
+	}
+	return c;
+}
+
+static void ashape(char *str, char *ext)
+{
+	int s[NCHAR];
+	char *src = str;
+	int i, l;
+	int bjoin = !strcmp(".medi", ext) || !strcmp(".fina", ext);
+	int ejoin = !strcmp(".medi", ext) || !strcmp(".init", ext);
+	for (l = 0; l < NCHAR && *src; l++)
+		s[l] = utf8get(&src);
+	for (i = 0; i < l; i++)
+		s[i] = achar_shape(s[i], i > 0 || bjoin, i < l - 1 || ejoin);
+	for (i = 0; i < l; i++)
+		utf8put(&str, s[i]);
+}
+
 static int trfn_name(char *dst, char *src)
 {
 	char ch[GNLEN];
+	char *d = dst;
 	char *s;
 	int i;
 	if (src[0] == '.')
 		return 1;
-	if (src[1] && strchr(src, '.'))
-		return 1;	/* ignore opentype features for now */
 	while (*src && *src != '.') {
 		s = ch;
 		if (src[0] == '_')
@@ -144,28 +211,34 @@ static int trfn_name(char *dst, char *src)
 			*s++ = *src++;
 		*s = '\0';
 		if (agl_map(ch)) {
-			strcpy(dst, agl_map(ch));
+			strcpy(d, agl_map(ch));
 			for (i = 0; i < LEN(agl_exceptions); i++)
-				if (!strcmp(agl_exceptions[i][0], dst))
-					strcpy(dst, agl_exceptions[i][1]);
-			dst = strchr(dst, '\0');
+				if (!strcmp(agl_exceptions[i][0], d))
+					strcpy(d, agl_exceptions[i][1]);
+			d = strchr(d, '\0');
 		} else if (ch[0] == 'u' && ch[1] == 'n' && ch[2] == 'i') {
 			for (i = 0; strlen(ch + 3 + 4 * i) >= 4; i++)
-				pututf8(&dst, hexval(ch + 3 + 4 * i, 4));
+				utf8put(&d, hexval(ch + 3 + 4 * i, 4));
 		} else if (ch[0] == 'u' && ch[1] && strchr(HEXDIGS, tolower(ch[1]))) {
-			pututf8(&dst, hexval(ch + 1, 6));
+			utf8put(&d, hexval(ch + 1, 6));
 		} else if (achar_map(ch)) {
-			pututf8(&dst, achar_map(ch));
+			utf8put(&d, achar_map(ch));
 		} else {
 			return 1;
 		}
 	}
-	return src[0];
+	ashape(dst, src);
+	return src[0] == '.' && strcmp(".init", src) &&
+		strcmp(".fina", src) && strcmp(".medi", src);
 }
 
 static void trfn_lig(char *c)
 {
 	int i;
+	if (c[0] && c[1] && strlen(c) > utf8len((unsigned char) c[0])) {
+		sprintf(strchr(trfn_ligs, '\0'), "%s ", c);
+		return;
+	}
 	for (i = 0; i < LEN(ligs); i++)
 		if (!strcmp(ligs[i], c))
 			sprintf(strchr(trfn_ligs, '\0'), "%s ", c);
@@ -184,12 +257,13 @@ void trfn_char(char *c, char *n, int wid, int typ)
 	char **a;
 	if (trfn_name(uc, c))
 		strcpy(uc, "---");
-	if (strchr(uc, ' ')) {		/* space not allowed in character names */
+	if (strchr(uc, ' ')) {		/* space not allowed in char names */
 		if (!trfn_swid && !strcmp(" ", uc))
 			trfn_swid = WX(wid);
 		return;
 	}
-	trfn_lig(uc);
+	if (strcmp("---", uc))
+		trfn_lig(uc);
 	if (typ < 0)
 		typ = trfn_type(uc);
 	strcpy(pos, c);
@@ -230,7 +304,7 @@ void trfn_print(void)
 	if (trfn_psname[0])
 		printf("fontname %s\n", trfn_psname);
 	printf("spacewidth %d\n", trfn_swid);
-	printf("ligatures %s 0\n", trfn_ligs);
+	printf("ligatures %s0\n", trfn_ligs);
 	if (trfn_special)
 		printf("special\n");
 	printf("charset\n");
