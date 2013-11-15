@@ -1,7 +1,7 @@
 #include <ctype.h>
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 #include "sbuf.h"
 #include "tab.h"
 #include "trfn.h"
@@ -12,7 +12,8 @@
 #define HEXDIGS		"0123456789abcdef"
 #define NCHAR		8
 #define GNLEN		64
-#define AGLLEN		(8 * 1024)
+#define AGLLEN		8192
+#define NSUBS		2048
 
 static struct sbuf sbuf_char;	/* charset section */
 static struct sbuf sbuf_kern;	/* kernpairs section */
@@ -195,13 +196,43 @@ static void ashape(char *str, char *ext)
 		utf8put(&str, s[i]);
 }
 
+static char subs_src[NSUBS][GNLEN];
+static char subs_dst[NSUBS][GNLEN];
+static int subs_n;
+
+void trfn_subs(char *c1, char *c2)
+{
+	if (subs_n < NSUBS) {
+		strcpy(subs_src[subs_n], c1);
+		strcpy(subs_dst[subs_n], c2);
+		subs_n++;
+	}
+}
+
+static char *trfn_substitude(char *c)
+{
+	char *dot;
+	int i;
+	for (i = 0; i < subs_n; i++)
+		if (!strcmp(c, subs_src[i]))
+			return subs_dst[i];
+	for (i = 0; i < subs_n; i++)
+		if (!strcmp(c, subs_dst[i]))
+			return NULL;
+	dot = strrchr(c, '.');
+	if (dot && strcmp(".init", dot) && strcmp(".fina", dot) && strcmp(".medi", dot))
+		return NULL;
+	return c;
+}
+
 static int trfn_name(char *dst, char *src)
 {
 	char ch[GNLEN];
 	char *d = dst;
 	char *s;
 	int i;
-	if (src[0] == '.')
+	src = trfn_substitude(src);
+	if (!src || src[0] == '.')
 		return 1;
 	while (*src && *src != '.') {
 		s = ch;
@@ -228,8 +259,7 @@ static int trfn_name(char *dst, char *src)
 		}
 	}
 	ashape(dst, src);
-	return src[0] == '.' && strcmp(".init", src) &&
-		strcmp(".fina", src) && strcmp(".medi", src);
+	return 0;
 }
 
 static void trfn_lig(char *c)
@@ -269,7 +299,7 @@ void trfn_char(char *c, char *n, int wid, int typ)
 	strcpy(pos, c);
 	if (n && atoi(n) >= 0 && atoi(n) < 256)
 		strcpy(pos, n);
-	if (!n && !uc[1] && uc[0] >= 32 && uc[0] <= 125)
+	if (!n && !strchr(c, '.') && !uc[1] && uc[0] >= 32 && uc[0] <= 125)
 		sprintf(pos, "%d", uc[0]);
 	sbuf_printf(&sbuf_char, "%s\t%d\t%d\t%s\n", uc, WX(wid), typ, pos);
 	a = tab_get(tab_alts, uc);

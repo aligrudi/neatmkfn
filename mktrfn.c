@@ -37,6 +37,7 @@ static void otfdump_read(void)
 		}
 		if (!strcmp("feature", cmd)) {
 			scanf("%s substitution %s %s", name, c1, c2);
+			trfn_subs(c2, c1);
 		}
 	}
 }
