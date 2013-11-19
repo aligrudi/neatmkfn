@@ -9,3 +9,4 @@ void sbuf_init(struct sbuf *sbuf);
 void sbuf_done(struct sbuf *sbuf);
 char *sbuf_buf(struct sbuf *sbuf);
 void sbuf_printf(struct sbuf *sbuf, char *s, ...);
+int sbuf_empty(struct sbuf *sbuf);

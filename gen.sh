@@ -10,7 +10,10 @@ RES="720"
 # pattern of ligatures to ignore
 LIGIGN="\(ct\|st\|sp\|Rp\)"
 # pattern of allowed opentype features
-OTFFEATS="\(swsh\|tilt\|smcp\|case\)"
+OTFFEATS="\(swsh\|titl\|smcp\|case\)"
+
+# otherwise sort and grep would be too slow
+export LC_ALL="C"
 
 # creating DESC
 mkdir -p $TP
@@ -32,15 +35,16 @@ function afmconv
 function otfconv
 {
 	ODOUT="/tmp/.mktrfn.otfdump"
-	otfdump $3 >$ODOUT
-	FEATS="`grep "^feature " $ODOUT | cut -f2 -d ' ' | sort | uniq`"
+	FEATS="`otfdump -s $3 | cut -f2 -d ' ' | sort | uniq`"
 	echo "$1: `echo $FEATS | tr '\n' ' '`"
-	cat $ODOUT | grep -v "^feature " | ./mktrfn $4 -r$RES -p $2 | \
-		sed "/^ligatures /s/ $LIGIGN//g" >$TP/$1
+	otfdump -nc $3 >$ODOUT
+	otfdump -k $3 | sort | uniq >>$ODOUT
+	# without any substitutions
+	cat $ODOUT | ./mktrfn $4 -r$RES -p $2 | sed "/^ligatures /s/ $LIGIGN//g" >$TP/$1
 	for FEAT in `echo $FEATS | tr ' ' '\n' | sed "/$OTFFEATS/!d"`
 	do
 		echo "  $1.$FEAT"
-		(grep "^feature $FEAT" $ODOUT; grep -v "^feature " $ODOUT) | \
+		(otfdump -s $3 | grep "^feature $FEAT" | sort | uniq; cat $ODOUT) | \
 			./mktrfn $4 -r$RES -p $2 | \
 			sed "/^ligatures /s/ $LIGIGN//g" >$TP/$1.$FEAT
 	done
@@ -94,10 +98,10 @@ afmconv ZD	ZapfDingbats		d050000l.afm
 
 for f in $FP/*.otf
 do
-	otfconv "`basename $f .otf`" "`basename $f .otf`" "$f"
+	otfconv "`basename $f .otf`" "`basename $f .otf`" "$f" -k50
 done
 
 for f in $FP/*.ttf
 do
-	otfconv "`basename $f .ttf`" "`basename $f .ttf`" "$f"
+	otfconv "`basename $f .ttf`" "`basename $f .ttf`" "$f" -k50
 done

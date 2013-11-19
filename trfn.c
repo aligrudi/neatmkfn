@@ -10,19 +10,25 @@
 #define WX(w)		(((w) < 0 ? (w) - trfn_div / 2 : (w) + trfn_div / 2) / trfn_div)
 #define LEN(a)		((sizeof(a) / sizeof((a)[0])))
 #define HEXDIGS		"0123456789abcdef"
-#define NCHAR		8
-#define GNLEN		64
-#define AGLLEN		8192
-#define NSUBS		2048
+#define NCHAR		8	/* number of characters per glyph */
+#define GNLEN		64	/* glyph name length */
+#define AGLLEN		8192	/* adobe glyphlist length */
+#define NSUBS		2048	/* number of substitutions */
+#define NPSAL		32	/* number of substitutions per glyph */
 
-static struct sbuf sbuf_char;	/* charset section */
-static struct sbuf sbuf_kern;	/* kernpairs section */
+static struct sbuf sbuf_char;	/* characters */
+static struct sbuf sbuf_kern;	/* kerning pairs */
 static int trfn_div;		/* divisor of widths */
 static int trfn_swid;		/* space width */
 static int trfn_special;	/* special flag */
+static int trfn_kmin;		/* minimum kerning value */
 static char trfn_ligs[8192];	/* font ligatures */
 static char trfn_trname[256];	/* font troff name */
 static char trfn_psname[256];	/* font ps name */
+/* glyph substition */
+static char subs_src[NSUBS][GNLEN];
+static char subs_dst[NSUBS][GNLEN];
+static int subs_n;
 
 /* adobe glyphlist mapping */
 static char agl_key[AGLLEN][GNLEN];
@@ -196,33 +202,33 @@ static void ashape(char *str, char *ext)
 		utf8put(&str, s[i]);
 }
 
-static char subs_src[NSUBS][GNLEN];
-static char subs_dst[NSUBS][GNLEN];
-static int subs_n;
-
-void trfn_subs(char *c1, char *c2)
+void trfn_sub(char *c1, char *c2)
 {
-	if (subs_n < NSUBS) {
+	if (subs_n < NSUBS && !strchr(c1, '.')) {
 		strcpy(subs_src[subs_n], c1);
 		strcpy(subs_dst[subs_n], c2);
 		subs_n++;
 	}
 }
 
-static char *trfn_substitude(char *c)
+/* return the list of postscript glyph aliases of character c */
+static void trfn_subs(char *c, char **a)
 {
 	char *dot;
-	int i;
+	int i, subs = 0;
+	/* adding c itself to the list of aliases only if not substituded */
 	for (i = 0; i < subs_n; i++)
 		if (!strcmp(c, subs_src[i]))
-			return subs_dst[i];
+			subs = 1;
+	dot = strrchr(c, '.');
+	if (!subs && (!dot || !strcmp(".init", dot) || !strcmp(".fina", dot) ||
+							!strcmp(".medi", dot)))
+			*a++ = c;
+	/* adding aliases added via trfn_subs() */
 	for (i = 0; i < subs_n; i++)
 		if (!strcmp(c, subs_dst[i]))
-			return NULL;
-	dot = strrchr(c, '.');
-	if (dot && strcmp(".init", dot) && strcmp(".fina", dot) && strcmp(".medi", dot))
-		return NULL;
-	return c;
+			*a++ = subs_src[i];
+	*a++ = NULL;
 }
 
 static int trfn_name(char *dst, char *src)
@@ -231,7 +237,6 @@ static int trfn_name(char *dst, char *src)
 	char *d = dst;
 	char *s;
 	int i;
-	src = trfn_substitude(src);
 	if (!src || src[0] == '.')
 		return 1;
 	while (*src && *src != '.') {
@@ -280,39 +285,46 @@ static int trfn_type(char *c)
 	return t ? t->type : 3;
 }
 
-void trfn_char(char *c, char *n, int wid, int typ)
+void trfn_char(char *psname, char *n, int wid, int typ)
 {
-	char uc[GNLEN];
-	char pos[GNLEN];
-	char **a;
-	if (trfn_name(uc, c))
+	char uc[GNLEN];			/* mapping unicode character */
+	char *a_ps[NPSAL] = {NULL};	/* postscript glyph substitutions */
+	char **a_tr;			/* troff character names */
+	char pos[GNLEN] = "";		/* postscript character position/name */
+	int i_ps = 0;			/* current name in a_ps */
+	/* initializing character attributes */
+	if (trfn_name(uc, psname))
 		strcpy(uc, "---");
-	if (strchr(uc, ' ')) {		/* space not allowed in char names */
-		if (!trfn_swid && !strcmp(" ", uc))
-			trfn_swid = WX(wid);
-		return;
-	}
-	if (strcmp("---", uc))
-		trfn_lig(uc);
-	if (typ < 0)
-		typ = trfn_type(uc);
-	strcpy(pos, c);
 	if (n && atoi(n) >= 0 && atoi(n) < 256)
 		strcpy(pos, n);
-	if (!n && !strchr(c, '.') && !uc[1] && uc[0] >= 32 && uc[0] <= 125)
+	if (!n && !strchr(psname, '.') && !uc[1] && uc[0] >= 32 && uc[0] <= 125)
 		sprintf(pos, "%d", uc[0]);
-	sbuf_printf(&sbuf_char, "%s\t%d\t%d\t%s\n", uc, WX(wid), typ, pos);
-	a = tab_get(tab_alts, uc);
-	while (a && *a)
-		sbuf_printf(&sbuf_char, "%s\t\"\n", *a++);
+	if (typ < 0)
+		typ = trfn_type(!strchr(psname, '.') ? uc : "");
+	/* printing troff charset */
+	trfn_subs(psname, a_ps);
+	for (i_ps = 0; !i_ps || a_ps[i_ps]; i_ps++) {
+		if (trfn_name(uc, a_ps[i_ps]))
+			strcpy(uc, "---");
+		if (strchr(uc, ' ')) {		/* space not allowed in char names */
+			if (!trfn_swid && !strcmp(" ", uc))
+				trfn_swid = WX(wid);
+			continue;
+		}
+		if (strcmp("---", uc))
+			trfn_lig(uc);
+		sbuf_printf(&sbuf_char, "char %s\t%d\t%d\t%s\t%s\n",
+				uc, WX(wid), typ, psname, pos);
+		a_tr = tab_get(tab_alts, uc);
+		while (a_tr && *a_tr)
+			sbuf_printf(&sbuf_char, "char %s\t\"\n", *a_tr++);
+	}
 }
 
 void trfn_kern(char *c1, char *c2, int x)
 {
-	char g1[GNLEN], g2[GNLEN];
-	if (!trfn_name(g1, c1) && !trfn_name(g2, c2) && abs(WX(x)) > WX(20))
-		if (!strchr(g1, ' ') && !strchr(g2, ' '))
-			sbuf_printf(&sbuf_kern, "%s\t%s\t%d\n", g1, g2, WX(x));
+	if (abs(WX(x)) >= WX(trfn_kmin))
+		sbuf_printf(&sbuf_kern, "kern %s\t%s\t%d\n", c1, c2, WX(x));
 }
 
 void trfn_trfont(char *name)
@@ -337,17 +349,16 @@ void trfn_print(void)
 	printf("ligatures %s0\n", trfn_ligs);
 	if (trfn_special)
 		printf("special\n");
-	printf("charset\n");
 	printf("%s", sbuf_buf(&sbuf_char));
-	printf("kernpairs\n");
 	printf("%s", sbuf_buf(&sbuf_kern));
 }
 
-void trfn_init(int res, int spc)
+void trfn_init(int res, int spc, int kmin)
 {
 	int i;
 	trfn_div = 7200 / res;
 	trfn_special = spc;
+	trfn_kmin = kmin;
 	if (agl_read("glyphlist.txt"))
 		fprintf(stderr, "mktrfn: could not open glyphlist.txt\n");
 	sbuf_init(&sbuf_char);

@@ -37,7 +37,7 @@ static void otfdump_read(void)
 		}
 		if (!strcmp("feature", cmd)) {
 			scanf("%s substitution %s %s", name, c1, c2);
-			trfn_subs(c2, c1);
+			trfn_sub(c1, c2);
 		}
 	}
 }
@@ -91,7 +91,8 @@ static char *usage =
 	"  -s      \tspecial font\n"
 	"  -p name \toverride font postscript name\n"
 	"  -t name \tset font troff name\n"
-	"  -r res  \tset device resolution (720)\n";
+	"  -r res  \tset device resolution (720)\n"
+	"  -k kmin \tspecify the minimum amount of kerning (0)\n";
 
 int main(int argc, char *argv[])
 {
@@ -99,13 +100,20 @@ int main(int argc, char *argv[])
 	int i = 1;
 	int res = 720;
 	int spc = 0;
+	int kmin = 0;
 	for (i = 1; i < argc && argv[i][0] == '-'; i++) {
 		switch (argv[i][1]) {
 		case 'a':
 			afm = 1;
 			break;
+		case 'k':
+			kmin = atoi(argv[i][2] ? argv[i] + 2 : argv[++i]);
+			break;
 		case 'o':
 			afm = 0;
+			break;
+		case 'p':
+			trfn_psfont(argv[i][2] ? argv[i] + 2 : argv[++i]);
 			break;
 		case 'r':
 			res = atoi(argv[i][2] ? argv[i] + 2 : argv[++i]);
@@ -116,15 +124,12 @@ int main(int argc, char *argv[])
 		case 't':
 			trfn_trfont(argv[i][2] ? argv[i] + 2 : argv[++i]);
 			break;
-		case 'p':
-			trfn_psfont(argv[i][2] ? argv[i] + 2 : argv[++i]);
-			break;
 		default:
 			printf("%s", usage);
 			return 0;
 		}
 	}
-	trfn_init(res, spc);
+	trfn_init(res, spc, kmin);
 	if (afm)
 		afm_read();
 	else
