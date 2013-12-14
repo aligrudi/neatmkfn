@@ -221,8 +221,8 @@ static void trfn_subs(char *c, char **a)
 		if (!strcmp(c, subs_src[i]))
 			subs = 1;
 	dot = strrchr(c, '.');
-	if (!subs && (!dot || !strcmp(".init", dot) || !strcmp(".fina", dot) ||
-							!strcmp(".medi", dot)))
+	if (!subs && (!dot || !strcmp(".isol", dot) || !strcmp(".init", dot) ||
+				!strcmp(".fina", dot) || !strcmp(".medi", dot)))
 			*a++ = c;
 	/* adding aliases added via trfn_subs() */
 	for (i = 0; i < subs_n; i++)
