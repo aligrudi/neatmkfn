@@ -323,7 +323,7 @@ void trfn_char(char *psname, char *n, int wid, int typ)
 
 void trfn_kern(char *c1, char *c2, int x)
 {
-	if (abs(WX(x)) >= WX(trfn_kmin))
+	if (WX(x) && abs(WX(x)) >= WX(trfn_kmin))
 		sbuf_printf(&sbuf_kern, "kern %s\t%s\t%d\n", c1, c2, WX(x));
 }
 
