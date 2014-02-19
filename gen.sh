@@ -53,9 +53,9 @@ function otfconv
 
 # The standard fonts
 afmconv R	Times-Roman		n021003l.afm
-afmconv I	Times-Italic		n021023l.afm
+afmconv I	Times-Italic		n021023l.afm -b
 afmconv B	Times-Bold		n021004l.afm
-afmconv BI	Times-BoldItalic	n021024l.afm
+afmconv BI	Times-BoldItalic	n021024l.afm -b
 afmconv S	Symbol			s050000l.afm -s
 afmconv S1	Times-Roman		n021003l.afm -s
 afmconv AR	AvantGarde-Book		a010013l.afm
@@ -63,32 +63,32 @@ afmconv AI	AvantGarde-BookOblique	a010033l.afm
 afmconv AB	AvantGarde-Demi		a010015l.afm
 afmconv AX	AvantGarde-DemiOblique	a010035l.afm
 afmconv H	Helvetica		n019043l.afm
-afmconv HI	Helvetica-Oblique	n019063l.afm
+afmconv HI	Helvetica-Oblique	n019063l.afm -b
 afmconv HB	Helvetica-Bold		n019044l.afm
-afmconv HX	Helvetica-BoldOblique	n019064l.afm
+afmconv HX	Helvetica-BoldOblique	n019064l.afm -b
 afmconv Hr	Helvetica-Narrow	n019043l.afm
-afmconv Hi	Helvetica-Narrow-Oblique	n019063l.afm
+afmconv Hi	Helvetica-Narrow-Oblique	n019063l.afm -b
 afmconv Hb	Helvetica-Narrow-Bold	n019044l.afm
-afmconv Hx	Helvetica-Narrow-BoldOblique	n019064l.afm
+afmconv Hx	Helvetica-Narrow-BoldOblique	n019064l.afm -b
 afmconv KR	Bookman-Light		b018012l.afm
-afmconv KI	Bookman-LightItalic	b018032l.afm
+afmconv KI	Bookman-LightItalic	b018032l.afm -b
 afmconv KB	Bookman-Demi		b018015l.afm
-afmconv KX	Bookman-DemiItalic	b018035l.afm
+afmconv KX	Bookman-DemiItalic	b018035l.afm -b
 afmconv NR	NewCenturySchlbk-Roman	c059013l.afm
-afmconv NI	NewCenturySchlbk-Italic	c059033l.afm
+afmconv NI	NewCenturySchlbk-Italic	c059033l.afm -b
 afmconv NB	NewCenturySchlbk-Bold	c059016l.afm
-afmconv NX	NewCenturySchlbk-BoldItalic	c059036l.afm
+afmconv NX	NewCenturySchlbk-BoldItalic	c059036l.afm -b
 afmconv PA	Palatino-Roman		p052003l.afm
 afmconv PR	Palatino-Roman		p052003l.afm
-afmconv PI	Palatino-Italic		p052023l.afm
+afmconv PI	Palatino-Italic		p052023l.afm -b
 afmconv PB	Palatino-Bold		p052004l.afm
-afmconv PX	Palatino-BoldItalic	p052024l.afm
+afmconv PX	Palatino-BoldItalic	p052024l.afm -b
 afmconv C	Courier			n022003l.afm
 afmconv CO	Courier			n022003l.afm
 afmconv CW	Courier			n022003l.afm
-afmconv CI	Courier-Oblique		n022023l.afm
+afmconv CI	Courier-Oblique		n022023l.afm -b
 afmconv CB	Courier-Bold		n022004l.afm
-afmconv CX	Courier-BoldOblique	n022024l.afm
+afmconv CX	Courier-BoldOblique	n022024l.afm -b
 afmconv ZI	ZapfChancery-MediumItalic	z003034l.afm
 afmconv ZD	ZapfDingbats		d050000l.afm
 

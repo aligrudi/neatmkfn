@@ -22,6 +22,7 @@ static int trfn_div;		/* divisor of widths */
 static int trfn_swid;		/* space width */
 static int trfn_special;	/* special flag */
 static int trfn_kmin;		/* minimum kerning value */
+static int trfn_bbox;		/* include bounding box */
 static char trfn_ligs[8192];	/* font ligatures */
 static char trfn_trname[256];	/* font troff name */
 static char trfn_psname[256];	/* font ps name */
@@ -285,7 +286,8 @@ static int trfn_type(char *c)
 	return t ? t->type : 3;
 }
 
-void trfn_char(char *psname, char *n, int wid, int typ)
+void trfn_char(char *psname, char *n, int wid, int typ,
+		int llx, int lly, int urx, int ury)
 {
 	char uc[GNLEN];			/* mapping unicode character */
 	char *a_ps[NPSAL] = {NULL};	/* postscript glyph substitutions */
@@ -313,8 +315,11 @@ void trfn_char(char *psname, char *n, int wid, int typ)
 		}
 		if (strcmp("---", uc))
 			trfn_lig(uc);
-		sbuf_printf(&sbuf_char, "char %s\t%d\t%d\t%s\t%s\n",
-				uc, WX(wid), typ, psname, pos);
+		sbuf_printf(&sbuf_char, "char %s\t%d", uc, WX(wid));
+		if (trfn_bbox && (llx || lly || urx || ury))
+			sbuf_printf(&sbuf_char, ",%d,%d,%d,%d",
+				WX(llx), WX(lly), WX(urx), WX(ury));
+		sbuf_printf(&sbuf_char, "\t%d\t%s\t%s\n", typ, psname, pos);
 		a_tr = tab_get(tab_alts, uc);
 		while (a_tr && *a_tr)
 			sbuf_printf(&sbuf_char, "char %s\t\"\n", *a_tr++);
@@ -353,12 +358,13 @@ void trfn_print(void)
 	printf("%s", sbuf_buf(&sbuf_kern));
 }
 
-void trfn_init(int res, int spc, int kmin)
+void trfn_init(int res, int spc, int kmin, int bbox)
 {
 	int i;
 	trfn_div = 7200 / res;
 	trfn_special = spc;
 	trfn_kmin = kmin;
+	trfn_bbox = bbox;
 	if (agl_read("glyphlist.txt"))
 		fprintf(stderr, "mktrfn: could not open glyphlist.txt\n");
 	sbuf_init(&sbuf_char);
