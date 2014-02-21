@@ -1,7 +1,7 @@
 /*
  * mktrfn - produce troff font descriptions
  *
- * Copyright (C) 2012-2013 Ali Gholami Rudi <ali at rudi dot ir>
+ * Copyright (C) 2012-2014 Ali Gholami Rudi <ali at rudi dot ir>
  *
  * This program is released under the Modified BSD license.
  */
@@ -129,8 +129,8 @@ static void afm_read(void)
 static char *usage =
 	"Usage: mktrfn [options] <input >output\n"
 	"Options:\n"
-	"  -o      \tread the output of otfdump for otf and ttf files (default)\n"
-	"  -a      \tread an AFM file\n"
+	"  -a      \tread an AFM file (default)\n"
+	"  -o      \tread the output of otfdump\n"
 	"  -s      \tspecial font\n"
 	"  -p name \toverride font postscript name\n"
 	"  -t name \tset font troff name\n"
@@ -140,7 +140,7 @@ static char *usage =
 
 int main(int argc, char *argv[])
 {
-	int afm = 0;
+	int afm = 1;
 	int i = 1;
 	int res = 720;
 	int spc = 0;
