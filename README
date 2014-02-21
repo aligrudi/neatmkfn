@@ -2,10 +2,10 @@ MKTRFN
 ======
 
 The mktrfn program creates troff font description files for neatroff
-from AFM (Adobe Font Metrics), TrueType, and OpenType fonts.  For
-TrueType and OpenType fonts, mktrfn depends on the otfdump program
-that comes with heirloom-docutils.  See the output of "mktrfn -h" for
-the available options.
+from AFM (Adobe Font Metrics) files.  TrueType and OpenType fonts can
+be first converted to AFM using programs like fontforge or
+lcdf-typetools (see ./gen.sh, for instance).  See the output of
+"mktrfn -h" for the available options.
 
 The included ./gen.sh script invokes mktrfn to create a complete
 output device for neatroff.  Change the variables in that file before
