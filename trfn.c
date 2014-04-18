@@ -30,6 +30,9 @@ static char trfn_psname[256];	/* font ps name */
 static char subs_src[NSUBS][GNLEN];
 static char subs_dst[NSUBS][GNLEN];
 static int subs_n;
+/* character type */
+static int trfn_asc;		/* minimum height of glyphs with ascender */
+static int trfn_desc;		/* minimum depth of glyphs with descender */
 
 /* adobe glyphlist mapping */
 static char agl_key[AGLLEN][GNLEN];
@@ -39,7 +42,6 @@ static int agl_n;
 /* lookup tables */
 static struct tab *tab_agl;
 static struct tab *tab_alts;
-static struct tab *tab_ctyp;
 
 static int utf8len(int c)
 {
@@ -280,13 +282,28 @@ static void trfn_lig(char *c)
 			sprintf(strchr(trfn_ligs, '\0'), "%s ", c);
 }
 
-static int trfn_type(char *c)
+static int trfn_type(char *s, int lly, int ury)
 {
-	struct ctype *t = tab_get(tab_ctyp, c);
-	return t ? t->type : 3;
+	int typ = 0;
+	int c = !s[0] || s[1] ? 0 : (unsigned char) *s;
+	if (c == 't' && !trfn_asc)
+		trfn_asc = ury;
+	if ((c == 'g' || c == 'j' || c == 'p' || c == 'q' || c == 'y') &&
+			(!trfn_desc || trfn_desc < lly))
+		trfn_desc = lly;
+	if (!trfn_desc || !trfn_asc) {
+		if (c > 0 && c < 128)
+			return ctype_ascii[c];
+		return 3;
+	}
+	if (!trfn_desc || lly <= trfn_desc)
+		typ |= 1;
+	if (!trfn_asc || ury >= trfn_asc)
+		typ |= 2;
+	return typ;
 }
 
-void trfn_char(char *psname, char *n, int wid, int typ,
+void trfn_char(char *psname, char *n, int wid,
 		int llx, int lly, int urx, int ury)
 {
 	char uc[GNLEN];			/* mapping unicode character */
@@ -294,6 +311,7 @@ void trfn_char(char *psname, char *n, int wid, int typ,
 	char **a_tr;			/* troff character names */
 	char pos[GNLEN] = "";		/* postscript character position/name */
 	int i_ps = 0;			/* current name in a_ps */
+	int typ;			/* character type */
 	/* initializing character attributes */
 	if (trfn_name(uc, psname))
 		strcpy(uc, "---");
@@ -301,8 +319,7 @@ void trfn_char(char *psname, char *n, int wid, int typ,
 		strcpy(pos, n);
 	if (!n && !strchr(psname, '.') && !uc[1] && uc[0] >= 32 && uc[0] <= 125)
 		sprintf(pos, "%d", uc[0]);
-	if (typ < 0)
-		typ = trfn_type(!strchr(psname, '.') ? uc : "");
+	typ = trfn_type(!strchr(psname, '.') ? uc : "", lly, ury);
 	/* printing troff charset */
 	trfn_subs(psname, a_ps);
 	for (i_ps = 0; !i_ps || a_ps[i_ps]; i_ps++) {
@@ -370,11 +387,8 @@ void trfn_init(int res, int spc, int kmin, int bbox)
 	sbuf_init(&sbuf_char);
 	sbuf_init(&sbuf_kern);
 	tab_alts = tab_alloc(LEN(alts));
-	tab_ctyp = tab_alloc(LEN(ctype));
 	for (i = 0; i < LEN(alts); i++)
 		tab_put(tab_alts, alts[i][0], alts[i] + 1);
-	for (i = 0; i < LEN(ctype); i++)
-		tab_put(tab_ctyp, ctype[i].ch, &ctype[i]);
 }
 
 void trfn_done(void)
@@ -382,7 +396,6 @@ void trfn_done(void)
 	sbuf_done(&sbuf_char);
 	sbuf_done(&sbuf_kern);
 	tab_free(tab_alts);
-	tab_free(tab_ctyp);
 	if (tab_agl)
 		tab_free(tab_agl);
 }

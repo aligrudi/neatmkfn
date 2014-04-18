@@ -29,7 +29,7 @@ static void otfdump_read(void)
 		}
 		if (!strcmp("char", cmd)) {
 			scanf("%s width %s", ch, wid);
-			trfn_char(ch, NULL, atoi(wid), -1, 0, 0, 0, 0);
+			trfn_char(ch, NULL, atoi(wid), 0, 0, 0, 0);
 		}
 		if (!strcmp("kernpair", cmd)) {
 			scanf("%s %s width %s", c1, c2, wid);
@@ -107,7 +107,7 @@ static void afm_read(void)
 			break;
 		}
 		if (ch[0] && pos[0] && wid[0])
-			trfn_char(ch, pos, atoi(wid), -1,
+			trfn_char(ch, pos, atoi(wid),
 				atoi(llx), atoi(lly), atoi(urx), atoi(ury));
 	}
 	while (fgets(ln, sizeof(ln), stdin)) {
