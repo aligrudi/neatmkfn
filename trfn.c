@@ -251,9 +251,12 @@ static int trfn_name(char *dst, char *src)
 		*s = '\0';
 		if (agl_map(ch)) {
 			strcpy(d, agl_map(ch));
-			for (i = 0; i < LEN(agl_exceptions); i++)
-				if (!strcmp(agl_exceptions[i][0], d))
+			for (i = 0; i < LEN(agl_exceptions); i++) {
+				if (!strcmp(agl_exceptions[i][0], d)) {
 					strcpy(d, agl_exceptions[i][1]);
+					break;
+				}
+			}
 			d = strchr(d, '\0');
 		} else if (ch[0] == 'u' && ch[1] == 'n' && ch[2] == 'i') {
 			for (i = 0; strlen(ch + 3 + 4 * i) >= 4; i++)
@@ -273,13 +276,17 @@ static int trfn_name(char *dst, char *src)
 static void trfn_lig(char *c)
 {
 	int i;
+	for (i = 0; i < LEN(ligs_exceptions); i++)
+		if (!strcmp(ligs_exceptions[i], c))
+			return;
 	if (c[0] && c[1] && strlen(c) > utf8len((unsigned char) c[0])) {
 		sprintf(strchr(trfn_ligs, '\0'), "%s ", c);
-		return;
+	} else {
+		for (i = 0; i < LEN(ligs_utf8); i++)
+			if (!strcmp(ligs_utf8[i][0], c))
+				sprintf(strchr(trfn_ligs, '\0'),
+					"%s ", ligs_utf8[i][1]);
 	}
-	for (i = 0; i < LEN(ligs); i++)
-		if (!strcmp(ligs[i], c))
-			sprintf(strchr(trfn_ligs, '\0'), "%s ", c);
 }
 
 static int trfn_type(char *s, int lly, int ury)
