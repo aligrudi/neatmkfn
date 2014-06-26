@@ -24,7 +24,8 @@ echo "unitwidth 10" >>$TP/DESC
 function afmconv
 {
 	echo $1
-	cat $3 | ./mktrfn $4 -a -b -r$RES -t $1 -p $2 >$TP/$1
+	cat $3 | ./mktrfn $4 -a -b -r$RES -t $1 -p $2 | \
+		sed "/^ligatures /s/ $LIGIGN//g" >$TP/$1
 }
 
 # converting otf and ttf fonts; needs fontforge or lcdf-typetools
@@ -53,8 +54,8 @@ afmconv AR	AvantGarde-Book		$FP/a010013l.afm
 afmconv AI	AvantGarde-BookOblique	$FP/a010033l.afm
 afmconv AB	AvantGarde-Demi		$FP/a010015l.afm
 afmconv AX	AvantGarde-DemiOblique	$FP/a010035l.afm
-afmconv H	Helvetica		$FP/n019043l.afm
-afmconv HI	Helvetica-Oblique	$FP/n019063l.afm
+afmconv H	Helvetica		$FP/n019003l.afm
+afmconv HI	Helvetica-Oblique	$FP/n019023l.afm
 afmconv HB	Helvetica-Bold		$FP/n019044l.afm
 afmconv HX	Helvetica-BoldOblique	$FP/n019064l.afm
 afmconv Hr	Helvetica-Narrow	$FP/n019043l.afm
@@ -81,7 +82,7 @@ afmconv CI	Courier-Oblique		$FP/n022023l.afm
 afmconv CB	Courier-Bold		$FP/n022004l.afm
 afmconv CX	Courier-BoldOblique	$FP/n022024l.afm
 afmconv ZI	ZapfChancery-MediumItalic	$FP/z003034l.afm
-afmconv ZD	ZapfDingbats		$FP/d050000l.afm
+afmconv ZD	ZapfDingbats		$FP/z003034l.afm
 
 # For otf and ttf files, we assume the postscript name of the font
 # can be obtained by dropping its extension.  Otherwise, remove the
