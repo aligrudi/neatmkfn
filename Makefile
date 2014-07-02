@@ -2,10 +2,10 @@ CC = cc
 CFLAGS = -O2 -Wall
 LDFLAGS =
 
-all: mktrfn
+all: mkfn
 %.o: %.c
 	$(CC) -c $(CFLAGS) $<
-mktrfn: mktrfn.o trfn.o sbuf.o tab.o
+mkfn: mkfn.o trfn.o sbuf.o tab.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 clean:
-	rm -f *.o mktrfn
+	rm -f *.o mkfn
