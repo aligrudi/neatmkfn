@@ -24,7 +24,7 @@ echo "unitwidth 10" >>$TP/DESC
 function afmconv
 {
 	echo $1
-	cat $3 | ./mktrfn $4 -a -b -r$RES -t $1 -p $2 | \
+	cat $3 | ./mkfn $4 -a -b -r$RES -t $1 -p $2 | \
 		sed "/^ligatures /s/ $LIGIGN//g" >$TP/$1
 }
 
@@ -32,13 +32,13 @@ function afmconv
 function otfconv
 {
 	FN="$1"
-	AFM="/tmp/.mktrfn.afm"
+	AFM="/tmp/.neatmkfn.afm"
 	if [ "$USELCDF" == "1" ]; then
 		cat $2 | cfftot1 2>/dev/null | t1rawafm >$AFM 2>/dev/null
 	else
 		echo -e "Open(\"$2\")\nGenerate(\"$AFM\")" | fontforge >/dev/null 2>&1
 	fi
-	cat $AFM | ./mktrfn -b -a -r$RES -t $FN -p $FN -k50 | \
+	cat $AFM | ./mkfn -b -a -r$RES -t $FN -p $FN -k50 | \
 		sed "/^ligatures /s/ $LIGIGN//g" >$TP/$FN
 	rm $AFM
 }
@@ -86,7 +86,7 @@ afmconv ZD	ZapfDingbats		$FP/z003034l.afm
 
 # For otf and ttf files, we assume the postscript name of the font
 # can be obtained by dropping its extension.  Otherwise, remove the
-# -p argument of mktrfn in otfconv function.
+# -p argument of mkfn in otfconv function.
 
 for f in $FP/*.otf $FP/*.ttf
 do
