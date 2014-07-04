@@ -56,8 +56,8 @@ afmconv AB	AvantGarde-Demi		$FP/a010015l.afm
 afmconv AX	AvantGarde-DemiOblique	$FP/a010035l.afm
 afmconv H	Helvetica		$FP/n019003l.afm
 afmconv HI	Helvetica-Oblique	$FP/n019023l.afm
-afmconv HB	Helvetica-Bold		$FP/n019044l.afm
-afmconv HX	Helvetica-BoldOblique	$FP/n019064l.afm
+afmconv HB	Helvetica-Bold		$FP/n019004l.afm
+afmconv HX	Helvetica-BoldOblique	$FP/n019024l.afm
 afmconv Hr	Helvetica-Narrow	$FP/n019043l.afm
 afmconv Hi	Helvetica-Narrow-Oblique	$FP/n019063l.afm
 afmconv Hb	Helvetica-Narrow-Bold	$FP/n019044l.afm
@@ -82,7 +82,7 @@ afmconv CI	Courier-Oblique		$FP/n022023l.afm
 afmconv CB	Courier-Bold		$FP/n022004l.afm
 afmconv CX	Courier-BoldOblique	$FP/n022024l.afm
 afmconv ZI	ZapfChancery-MediumItalic	$FP/z003034l.afm
-afmconv ZD	ZapfDingbats		$FP/z003034l.afm
+afmconv ZD	ZapfDingbats		$FP/d050000l.afm
 
 # For otf and ttf files, we assume the postscript name of the font
 # can be obtained by dropping its extension.  Otherwise, remove the
@@ -90,8 +90,10 @@ afmconv ZD	ZapfDingbats		$FP/z003034l.afm
 
 for f in $FP/*.otf $FP/*.ttf
 do
-	FN="`basename $f .otf`"
-	FN="`basename $FN .ttf`"
-	echo $FN
-	otfconv $FN $f
+	if [ -e "$f" ]; then
+		FN="`basename $f .otf`"
+		FN="`basename $FN .ttf`"
+		echo $FN
+		otfconv $FN $f
+	fi
 done
