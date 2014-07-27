@@ -15,33 +15,6 @@
 
 #define TOKLEN		256
 
-static void otfdump_read(void)
-{
-	char cmd[TOKLEN];
-	char name[TOKLEN];
-	char ch[TOKLEN];
-	char c1[TOKLEN], c2[TOKLEN];
-	char wid[TOKLEN];
-	while (scanf("%s", cmd) == 1) {
-		if (!strcmp("name", cmd)) {
-			scanf("%s", name);
-			trfn_psfont(name);
-		}
-		if (!strcmp("char", cmd)) {
-			scanf("%s width %s", ch, wid);
-			trfn_char(ch, NULL, atoi(wid), 0, 0, 0, 0);
-		}
-		if (!strcmp("kernpair", cmd)) {
-			scanf("%s %s width %s", c1, c2, wid);
-			trfn_kern(c1, c2, atoi(wid));
-		}
-		if (!strcmp("feature", cmd)) {
-			scanf("%s substitution %s %s", name, c1, c2);
-			trfn_sub(c1, c2);
-		}
-	}
-}
-
 static char *afm_charfield(char *s, char *d)
 {
 	while (*s && !isspace(*s) && *s != ';')
@@ -52,7 +25,7 @@ static char *afm_charfield(char *s, char *d)
 	return s;
 }
 
-static void afm_read(void)
+static int afm_read(void)
 {
 	char ln[1024];
 	char ch[TOKLEN] = "", pos[TOKLEN] = "";
@@ -107,7 +80,7 @@ static void afm_read(void)
 			break;
 		}
 		if (ch[0] && pos[0] && wid[0])
-			trfn_char(ch, pos, atoi(wid),
+			trfn_char(ch, atoi(pos), 0, atoi(wid),
 				atoi(llx), atoi(lly), atoi(urx), atoi(ury));
 	}
 	while (fgets(ln, sizeof(ln), stdin)) {
@@ -124,13 +97,16 @@ static void afm_read(void)
 		if (sscanf(ln, "KPX %s %s %s", c1, c2, wid) == 3)
 			trfn_kern(c1, c2, atoi(wid));
 	}
+	return 0;
 }
+
+int otf_read(void);
 
 static char *usage =
 	"Usage: mktrfn [options] <input >output\n"
 	"Options:\n"
 	"  -a      \tread an AFM file (default)\n"
-	"  -o      \tread the output of otfdump\n"
+	"  -o      \tread an OTF file\n"
 	"  -s      \tspecial font\n"
 	"  -p name \toverride font postscript name\n"
 	"  -t name \tset font troff name\n"
@@ -181,7 +157,7 @@ int main(int argc, char *argv[])
 	if (afm)
 		afm_read();
 	else
-		otfdump_read();
+		otf_read();
 	trfn_print();
 	trfn_done();
 	return 0;
