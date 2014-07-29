@@ -5,10 +5,9 @@
 #include <unistd.h>
 #include "trfn.h"
 
-#define NGLYPHS			(1 << 14)
-#define GNLEN			(64)
-#define BUFLEN			(1 << 23)
-#define OWID(w)			((w) * 1000 / (upm))
+#define NGLYPHS		(1 << 14)
+#define GNLEN		(64)
+#define BUFLEN		(1 << 23)
 
 #define U32(buf, off)		(htonl(*(u32 *) ((buf) + (off))))
 #define U16(buf, off)		(htons(*(u16 *) ((buf) + (off))))
@@ -34,8 +33,20 @@ static int glyph_bbox[NGLYPHS][4];
 static int glyph_wid[NGLYPHS];
 static int glyph_n;
 static int upm;			/* units per em */
+static int res;			/* device resolution */
 
 static char *macset[];
+
+static int owid(int w)
+{
+	return (w < 0 ? w * 1000 - upm / 2 : w * 1000 + upm / 2) / upm;
+}
+
+static int uwid(int w)
+{
+	int d = 7200 / res;
+	return (w < 0 ? owid(w) - d / 2 : owid(w) + d / 2) / d;
+}
 
 /* find the otf table with the given name */
 static void *otf_table(void *otf, char *name)
@@ -186,9 +197,326 @@ static void otf_kern(void *otf, void *kern)
 				c2 = U16(tab, 14 + 6 * j + 2);
 				val = S16(tab, 14 + 6 * j + 4);
 				trfn_kern(glyph_name[c1], glyph_name[c2],
-					OWID(val));
+					owid(val));
 			}
 		}
+	}
+}
+
+static int coverage(void *cov, int *out)
+{
+	int fmt = U16(cov, 0);
+	int n = U16(cov, 2);
+	int beg, end;
+	int ncov = 0;
+	int i, j;
+	if (fmt == 1) {
+		for (i = 0; i < n; i++)
+			out[ncov++] = U16(cov, 4 + 2 * i);
+	}
+	if (fmt == 2) {
+		for (i = 0; i < n; i++) {
+			beg = U16(cov, 4 + 6 * i);
+			end = U16(cov, 4 + 6 * i + 2);
+			for (j = beg; j <= end; j++)
+				out[ncov++] = j;
+		}
+	}
+	return ncov;
+}
+
+static int valuerecord_len(int fmt)
+{
+	int off = 0;
+	int i;
+	for (i = 0; i < 8; i++)
+		if (fmt & (1 << i))
+			off += 2;
+	return off;
+}
+
+static void valuerecord_print(int fmt, void *rec)
+{
+	int vals[8] = {0};
+	int off = 0;
+	int i;
+	for (i = 0; i < 8; i++) {
+		if (fmt & (1 << i)) {
+			vals[i] = uwid(S16(rec, off));
+			off += 2;
+		}
+	}
+	if (fmt)
+		printf(":%+d%+d%+d%+d", vals[0], vals[1], vals[2], vals[3]);
+}
+
+static void otf_gpostype1(void *otf, char *feat, char *sub)
+{
+	int fmt = U16(sub, 0);
+	int vfmt = U16(sub, 4);
+	int cov[NGLYPHS];
+	int ncov, nvals;
+	int vlen = valuerecord_len(vfmt);
+	int i;
+	ncov = coverage(sub + U16(sub, 2), cov);
+	if (fmt == 1) {
+		for (i = 0; i < ncov; i++) {
+			printf("gpos %s %s", feat, glyph_name[cov[i]]);
+			valuerecord_print(vfmt, sub + 6);
+			printf("\n");
+		}
+	}
+	if (fmt == 2) {
+		nvals = U16(sub, 6);
+		for (i = 0; i < nvals; i++) {
+			printf("gpos %s %s", feat, glyph_name[cov[i]]);
+			valuerecord_print(vfmt, sub + 8 + i * vlen);
+			printf("\n");
+		}
+	}
+}
+
+static void otf_gpostype2(void *otf, char *feat, char *sub)
+{
+	int fmt = U16(sub, 0);
+	int vfmt1 = U16(sub, 4);
+	int vfmt2 = U16(sub, 6);
+	int c2len;
+	int nc1 = U16(sub, 8);
+	int cov[NGLYPHS];
+	void *c2;
+	int ncov, nc2, second;
+	int i, j;
+	if (fmt != 1)
+		return;
+	ncov = coverage(sub + U16(sub, 2), cov);
+	c2len = 2 + valuerecord_len(vfmt1) + valuerecord_len(vfmt2);
+	for (i = 0; i < nc1; i++) {
+		c2 = sub + U16(sub, 10 + 2 * i);
+		nc2 = U16(c2, 0);
+		for (j = 0; j < nc2; j++) {
+			printf("gpos %s 2", feat);
+			second = U16(c2 + 2 + c2len * j, 0);
+			printf(" %s", glyph_name[cov[i]]);
+			valuerecord_print(vfmt1, c2 + 2 + c2len * j + 2);
+			printf(" %s", glyph_name[second]);
+			valuerecord_print(vfmt2, c2 + 2 + c2len * j + 2 +
+					valuerecord_len(vfmt1));
+			printf("\n");
+		}
+	}
+}
+
+static void otf_gpostype3(void *otf, char *feat, char *sub)
+{
+	int fmt = U16(sub, 0);
+	int cov[NGLYPHS];
+	int ncov, i, n;
+	ncov = coverage(sub + U16(sub, 2), cov);
+	if (fmt != 1)
+		return;
+	n = U16(sub, 4);
+	for (i = 0; i < n; i++) {
+		int prev = U16(sub, 6 + 4 * i);
+		int next = U16(sub, 6 + 4 * i + 2);
+		printf("gcur %s %s", feat, glyph_name[cov[i]]);
+		if (prev)
+			printf(" %d %d", uwid(S16(sub, prev + 2)),
+					uwid(S16(sub, prev + 4)));
+		else
+			printf(" - -");
+		if (next)
+			printf(" %d %d", uwid(S16(sub, next + 2)),
+					uwid(S16(sub, next + 4)));
+		else
+			printf(" - -");
+		printf("\n");
+	}
+}
+
+static void otf_gposfeatrec(void *otf, void *gpos, void *featrec)
+{
+	void *feats = gpos + U16(gpos, 6);
+	void *lookups = gpos + U16(gpos, 8);
+	void *feat, *lookup, *tab;
+	int nlookups, type, flag, ntabs;
+	char tag[8] = "";
+	int i, j;
+	memcpy(tag, featrec, 4);
+	feat = feats + U16(featrec, 4);
+	nlookups = U16(feat, 2);
+	for (i = 0; i < nlookups; i++) {
+		lookup = lookups + U16(lookups, 2 + 2 * U16(feat, 4 + 2 * i));
+		type = U16(lookup, 0);
+		flag = U16(lookup, 2);
+		ntabs = U16(lookup, 4);
+		for (j = 0; j < ntabs; j++) {
+			tab = lookup + U16(lookup, 6 + 2 * j);
+			if (type == 1)
+				otf_gpostype1(otf, tag, tab);
+			if (type == 2)
+				otf_gpostype2(otf, tag, tab);
+			if (type == 3)
+				otf_gpostype3(otf, tag, tab);
+		}
+	}
+}
+
+static void otf_gposlang(void *otf, void *gpos, void *lang)
+{
+	void *feats = gpos + U16(gpos, 6);
+	int featidx = U16(lang, 2);
+	int nfeat = U16(lang, 4);
+	int i;
+	if (featidx != 0xffff)
+		otf_gposfeatrec(otf, gpos, feats + 2 + 6 * featidx);
+	for (i = 0; i < nfeat; i++)
+		otf_gposfeatrec(otf, gpos,
+				feats + 2 + 6 * U16(lang, 6 + 2 * i));
+}
+
+static void otf_gpos(void *otf, void *gpos)
+{
+	void *scripts = gpos + U16(gpos, 4);
+	int nscripts, nlangs;
+	void *script;
+	void *grec;
+	int i, j;
+	nscripts = U16(scripts, 0);
+	for (i = 0; i < nscripts; i++) {
+		grec = scripts + 2 + 6 * i;
+		script = scripts + U16(grec, 4);
+		if (U16(script, 0))
+			otf_gposlang(otf, gpos, script + U16(script, 0));
+		nlangs = U16(script, 2);
+		for (j = 0; j < nlangs; j++)
+			otf_gposlang(otf, gpos, script +
+					U16(script, 4 + 6 * j + 4));
+	}
+}
+
+static void otf_gsubtype1(void *otf, char *feat, char *sub)
+{
+	int cov[NGLYPHS];
+	int fmt = U16(sub, 0);
+	int ncov;
+	int n;
+	int i;
+	ncov = coverage(sub + U16(sub, 2), cov);
+	if (fmt == 1) {
+		for (i = 0; i < ncov; i++)
+			printf("gsub %s 2 -%s +%s\n",
+				feat, glyph_name[cov[i]],
+				glyph_name[cov[i] + S16(sub, 4)]);
+	}
+	if (fmt == 2) {
+		n = U16(sub, 4);
+		for (i = 0; i < n; i++)
+			printf("gsub %s 2 -%s +%s\n",
+				feat, glyph_name[cov[i]],
+				glyph_name[U16(sub, 6 + 2 * i)]);
+	}
+}
+
+static void otf_gsubtype3(void *otf, char *feat, char *sub)
+{
+	int cov[NGLYPHS];
+	int fmt = U16(sub, 0);
+	int ncov, n, i, j;
+	if (fmt != 1)
+		return;
+	ncov = coverage(sub + U16(sub, 2), cov);
+	n = U16(sub, 4);
+	for (i = 0; i < n; i++) {
+		void *alt = sub + U16(sub, 6 + 2 * i);
+		int nalt = U16(alt, 0);
+		for (j = 0; j < nalt; j++)
+			printf("gsub %s 2 -%s +%s\n",
+				feat, glyph_name[cov[i]],
+				glyph_name[U16(alt, 2 + 2 * j)]);
+	}
+}
+
+static void otf_gsubtype4(void *otf, char *feat, char *sub)
+{
+	int fmt = U16(sub, 0);
+	int cov[NGLYPHS];
+	int ncov, n, i, j, k;
+	if (fmt != 1)
+		return;
+	ncov = coverage(sub + U16(sub, 2), cov);
+	n = U16(sub, 4);
+	for (i = 0; i < n; i++) {
+		void *set = sub + U16(sub, 6 + 2 * i);
+		int nset = U16(set, 0);
+		for (j = 0; j < nset; j++) {
+			void *lig = set + U16(set, 2 + 2 * j);
+			int nlig = U16(lig, 2);
+			printf("gsub %s %d -%s",
+				feat, nlig + 1, glyph_name[cov[i]]);
+			for (k = 0; k < nlig - 1; k++)
+				printf(" -%s", glyph_name[U16(lig, 4 + 2 * k)]);
+			printf(" +%s\n", glyph_name[U16(lig, 0)]);
+		}
+	}
+}
+
+static void otf_gsubfeatrec(void *otf, void *gsub, void *featrec)
+{
+	void *feats = gsub + U16(gsub, 6);
+	void *lookups = gsub + U16(gsub, 8);
+	void *feat, *lookup, *tab;
+	int nlookups, type, flag, ntabs;
+	char tag[8] = "";
+	int i, j;
+	memcpy(tag, featrec, 4);
+	feat = feats + U16(featrec, 4);
+	nlookups = U16(feat, 2);
+	for (i = 0; i < nlookups; i++) {
+		lookup = lookups + U16(lookups, 2 + 2 * U16(feat, 4 + 2 * i));
+		type = U16(lookup, 0);
+		flag = U16(lookup, 2);
+		ntabs = U16(lookup, 4);
+		for (j = 0; j < ntabs; j++) {
+			tab = lookup + U16(lookup, 6 + 2 * j);
+			if (type == 1)
+				otf_gsubtype1(otf, tag, tab);
+			if (type == 3)
+				otf_gsubtype3(otf, tag, tab);
+			if (type == 4)
+				otf_gsubtype4(otf, tag, tab);
+		}
+	}
+}
+
+static void otf_gsublang(void *otf, void *gsub, void *lang)
+{
+	void *feats = gsub + U16(gsub, 6);
+	int featidx = U16(lang, 2);
+	int nfeat = U16(lang, 4);
+	int i;
+	if (featidx != 0xffff)
+		otf_gsubfeatrec(otf, gsub, feats + 2 + 6 * featidx);
+	for (i = 0; i < nfeat; i++)
+		otf_gsubfeatrec(otf, gsub,
+				feats + 2 + 6 * U16(lang, 6 + 2 * i));
+}
+
+static void otf_gsub(void *otf, void *gsub)
+{
+	void *scripts = gsub + U16(gsub, 4);
+	int nscripts, nlangs;
+	void *script;
+	int i, j;
+	nscripts = U16(scripts, 0);
+	for (i = 0; i < nscripts; i++) {
+		script = scripts + U16(scripts + 2 + 6 * i, 4);
+		nlangs = U16(script, 2);
+		if (U16(script, 0))
+			otf_gsublang(otf, gsub, script + U16(script, 0));
+		for (j = 0; j < nlangs; j++)
+			otf_gsublang(otf, gsub, script +
+					U16(script, 4 + 6 * j + 4));
 	}
 }
 
@@ -222,12 +550,22 @@ int otf_read(void)
 	for (i = 0; i < glyph_n; i++) {
 		trfn_char(glyph_name[i], -1,
 			glyph_code[i] != 0xffff ? glyph_code[i] : 0,
-			OWID(glyph_wid[i]),
-			OWID(glyph_bbox[i][0]), OWID(glyph_bbox[i][1]),
-			OWID(glyph_bbox[i][2]), OWID(glyph_bbox[i][3]));
+			owid(glyph_wid[i]),
+			owid(glyph_bbox[i][0]), owid(glyph_bbox[i][1]),
+			owid(glyph_bbox[i][2]), owid(glyph_bbox[i][3]));
 	}
-	otf_kern(buf, otf_table(buf, "kern"));
+	if (otf_table(buf, "kern"))
+		otf_kern(buf, otf_table(buf, "kern"));
 	return 0;
+}
+
+void otf_feat(int r)
+{
+	res = r;
+	if (otf_table(buf, "GSUB"))
+		otf_gsub(buf, otf_table(buf, "GSUB"));
+	if (otf_table(buf, "GPOS"))
+		otf_gpos(buf, otf_table(buf, "GPOS"));
 }
 
 static char *macset[] = {

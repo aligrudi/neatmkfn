@@ -101,6 +101,7 @@ static int afm_read(void)
 }
 
 int otf_read(void);
+void otf_feat(int res);
 
 static char *usage =
 	"Usage: mktrfn [options] <input >output\n"
@@ -159,6 +160,8 @@ int main(int argc, char *argv[])
 	else
 		otf_read();
 	trfn_print();
+	if (!afm)
+		otf_feat(res);
 	trfn_done();
 	return 0;
 }
