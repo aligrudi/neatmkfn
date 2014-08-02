@@ -38,7 +38,7 @@ function otfconv
 	else
 		echo -e "Open(\"$2\")\nGenerate(\"$AFM\")" | fontforge >/dev/null 2>&1
 	fi
-	cat $AFM | ./mkfn -b -a -r$RES -t $FN -p $FN -k50 | \
+	cat $AFM | ./mkfn -b -a -r$RES -t $FN -p $FN -k5 | \
 		sed "/^ligatures /s/ $LIGIGN//g" >$TP/$FN
 	rm $AFM
 }
