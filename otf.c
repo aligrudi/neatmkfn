@@ -1,6 +1,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include "trfn.h"
@@ -8,6 +9,7 @@
 #define NGLYPHS		(1 << 14)
 #define GNLEN		(64)
 #define BUFLEN		(1 << 23)
+#define MAX(a, b)	((a) < (b) ? (b) : (a))
 
 #define U32(buf, off)		(htonl(*(u32 *) ((buf) + (off))))
 #define U16(buf, off)		(htons(*(u16 *) ((buf) + (off))))
@@ -34,6 +36,7 @@ static int glyph_wid[NGLYPHS];
 static int glyph_n;
 static int upm;			/* units per em */
 static int res;			/* device resolution */
+static int kmin;		/* minimum kerning value */
 
 static char *macset[];
 
@@ -225,6 +228,35 @@ static int coverage(void *cov, int *out)
 	return ncov;
 }
 
+static int classdef(void *tab, int *gl, int *cls)
+{
+	int fmt = U16(tab, 0);
+	int beg, end;
+	int n, ngl = 0;
+	int i, j;
+	if (fmt == 1) {
+		beg = U16(tab, 2);
+		ngl = U16(tab, 4);
+		for (i = 0; i < ngl; i++) {
+			gl[i] = beg + i;
+			cls[i] = U16(tab, 6 + 2 * i);
+		}
+	}
+	if (fmt == 2) {
+		n = U16(tab, 2);
+		for (i = 0; i < n; i++) {
+			beg = U16(tab, 4 + 6 * i);
+			end = U16(tab, 4 + 6 * i + 2);
+			for (j = beg; j <= end; j++) {
+				gl[ngl] = j;
+				cls[ngl] = U16(tab, 4 + 6 * i + 4);
+				ngl++;
+			}
+		}
+	}
+	return ngl;
+}
+
 static int valuerecord_len(int fmt)
 {
 	int off = 0;
@@ -248,6 +280,20 @@ static void valuerecord_print(int fmt, void *rec)
 	}
 	if (fmt)
 		printf(":%+d%+d%+d%+d", vals[0], vals[1], vals[2], vals[3]);
+}
+
+static int valuerecord_small(int fmt, void *rec)
+{
+	int off = 0;
+	int i;
+	for (i = 0; i < 8; i++) {
+		if (fmt & (1 << i)) {
+			if (abs(uwid(S16(rec, off))) >= MAX(1, kmin))
+				return 0;
+			off += 2;
+		}
+	}
+	return 1;
 }
 
 static void otf_gpostype1(void *otf, char *feat, char *sub)
@@ -281,28 +327,56 @@ static void otf_gpostype2(void *otf, char *feat, char *sub)
 	int fmt = U16(sub, 0);
 	int vfmt1 = U16(sub, 4);
 	int vfmt2 = U16(sub, 6);
-	int c2len;
-	int nc1 = U16(sub, 8);
-	int cov[NGLYPHS];
-	void *c2;
-	int ncov, nc2, second;
+	int fmtoff1, fmtoff2;
+	int vrlen;		/* valuerecord1 and valuerecord2 length */
 	int i, j;
-	if (fmt != 1)
-		return;
-	ncov = coverage(sub + U16(sub, 2), cov);
-	c2len = 2 + valuerecord_len(vfmt1) + valuerecord_len(vfmt2);
-	for (i = 0; i < nc1; i++) {
-		c2 = sub + U16(sub, 10 + 2 * i);
-		nc2 = U16(c2, 0);
-		for (j = 0; j < nc2; j++) {
-			printf("gpos %s 2", feat);
-			second = U16(c2 + 2 + c2len * j, 0);
-			printf(" %s", glyph_name[cov[i]]);
-			valuerecord_print(vfmt1, c2 + 2 + c2len * j + 2);
-			printf(" %s", glyph_name[second]);
-			valuerecord_print(vfmt2, c2 + 2 + c2len * j + 2 +
-					valuerecord_len(vfmt1));
-			printf("\n");
+	vrlen = valuerecord_len(vfmt1) + valuerecord_len(vfmt2);
+	if (fmt == 1) {
+		int cov[NGLYPHS];
+		int nc1 = U16(sub, 8);
+		coverage(sub + U16(sub, 2), cov);
+		for (i = 0; i < nc1; i++) {
+			void *c2 = sub + U16(sub, 10 + 2 * i);
+			int nc2 = U16(c2, 0);
+			for (j = 0; j < nc2; j++) {
+				int second = U16(c2 + 2 + (2 + vrlen) * j, 0);
+				fmtoff1 = 2 + (2 + vrlen) * j + 2;
+				fmtoff2 = fmtoff1 + valuerecord_len(vfmt2);
+				if (valuerecord_small(vfmt1, c2 + fmtoff1) &&
+					valuerecord_small(vfmt2, c2 + fmtoff2))
+					continue;
+				printf("gpos %s 2", feat);
+				printf(" %s", glyph_name[cov[i]]);
+				valuerecord_print(vfmt1, c2 + fmtoff1);
+				printf(" %s", glyph_name[second]);
+				valuerecord_print(vfmt2, c2 + fmtoff2);
+				printf("\n");
+			}
+		}
+	}
+	if (fmt == 2) {
+		int gl1[NGLYPHS], gl2[NGLYPHS];
+		int cls1[NGLYPHS], cls2[NGLYPHS];
+		int ngl1 = classdef(sub + U16(sub, 8), gl1, cls1);
+		int ngl2 = classdef(sub + U16(sub, 10), gl2, cls2);
+		int ncls1 = U16(sub, 12);
+		int ncls2 = U16(sub, 14);
+		for (i = 0; i < ngl1; i++) {
+			for (j = 0; j < ngl2; j++) {
+				if (cls1[i] >= ncls1 || cls2[j] >= ncls2)
+					continue;
+				fmtoff1 = 16 + (cls1[i] * ncls2 + cls2[j]) * vrlen;
+				fmtoff2 = fmtoff1 + valuerecord_len(vfmt1);
+				if (valuerecord_small(vfmt1, sub + fmtoff1) &&
+					valuerecord_small(vfmt2, sub + fmtoff2))
+					continue;
+				printf("gpos %s 2", feat);
+				printf(" %s", glyph_name[gl1[i]]);
+				valuerecord_print(vfmt1, sub + fmtoff1);
+				printf(" %s", glyph_name[gl2[j]]);
+				valuerecord_print(vfmt2, sub + fmtoff2);
+				printf("\n");
+			}
 		}
 	}
 }
@@ -559,9 +633,10 @@ int otf_read(void)
 	return 0;
 }
 
-void otf_feat(int r)
+void otf_feat(int r, int k)
 {
 	res = r;
+	kmin = k;
 	if (otf_table(buf, "GSUB"))
 		otf_gsub(buf, otf_table(buf, "GSUB"));
 	if (otf_table(buf, "GPOS"))
