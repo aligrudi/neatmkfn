@@ -71,7 +71,6 @@ static void otf_cmap4(void *otf, void *cmap4)
 {
 	int nsegs;
 	void *ends, *begs, *deltas, *offsets;
-	void *idarray;
 	int beg, end, delta, offset;
 	int i, j;
 	nsegs = U16(cmap4, 6) / 2;
@@ -79,7 +78,6 @@ static void otf_cmap4(void *otf, void *cmap4)
 	begs = ends + 2 * nsegs + 2;
 	deltas = begs + 2 * nsegs;
 	offsets = deltas + 2 * nsegs;
-	idarray = offsets + 2 * nsegs;
 	for (i = 0; i < nsegs; i++) {
 		beg = U16(begs, 2 * i);
 		end = U16(ends, 2 * i);
@@ -385,8 +383,8 @@ static void otf_gpostype3(void *otf, char *feat, char *sub)
 {
 	int fmt = U16(sub, 0);
 	int cov[NGLYPHS];
-	int ncov, i, n;
-	ncov = coverage(sub + U16(sub, 2), cov);
+	int i, n;
+	coverage(sub + U16(sub, 2), cov);
 	if (fmt != 1)
 		return;
 	n = U16(sub, 4);
@@ -413,7 +411,7 @@ static void otf_gposfeatrec(void *otf, void *gpos, void *featrec)
 	void *feats = gpos + U16(gpos, 6);
 	void *lookups = gpos + U16(gpos, 8);
 	void *feat, *lookup, *tab;
-	int nlookups, type, flag, ntabs;
+	int nlookups, type, ntabs;
 	char tag[8] = "";
 	int i, j;
 	memcpy(tag, featrec, 4);
@@ -422,7 +420,6 @@ static void otf_gposfeatrec(void *otf, void *gpos, void *featrec)
 	for (i = 0; i < nlookups; i++) {
 		lookup = lookups + U16(lookups, 2 + 2 * U16(feat, 4 + 2 * i));
 		type = U16(lookup, 0);
-		flag = U16(lookup, 2);
 		ntabs = U16(lookup, 4);
 		for (j = 0; j < ntabs; j++) {
 			tab = lookup + U16(lookup, 6 + 2 * j);
@@ -496,10 +493,10 @@ static void otf_gsubtype3(void *otf, char *feat, char *sub)
 {
 	int cov[NGLYPHS];
 	int fmt = U16(sub, 0);
-	int ncov, n, i, j;
+	int n, i, j;
 	if (fmt != 1)
 		return;
-	ncov = coverage(sub + U16(sub, 2), cov);
+	coverage(sub + U16(sub, 2), cov);
 	n = U16(sub, 4);
 	for (i = 0; i < n; i++) {
 		void *alt = sub + U16(sub, 6 + 2 * i);
@@ -515,10 +512,10 @@ static void otf_gsubtype4(void *otf, char *feat, char *sub)
 {
 	int fmt = U16(sub, 0);
 	int cov[NGLYPHS];
-	int ncov, n, i, j, k;
+	int n, i, j, k;
 	if (fmt != 1)
 		return;
-	ncov = coverage(sub + U16(sub, 2), cov);
+	coverage(sub + U16(sub, 2), cov);
 	n = U16(sub, 4);
 	for (i = 0; i < n; i++) {
 		void *set = sub + U16(sub, 6 + 2 * i);
@@ -540,7 +537,7 @@ static void otf_gsubfeatrec(void *otf, void *gsub, void *featrec)
 	void *feats = gsub + U16(gsub, 6);
 	void *lookups = gsub + U16(gsub, 8);
 	void *feat, *lookup, *tab;
-	int nlookups, type, flag, ntabs;
+	int nlookups, type, ntabs;
 	char tag[8] = "";
 	int i, j;
 	memcpy(tag, featrec, 4);
@@ -549,7 +546,6 @@ static void otf_gsubfeatrec(void *otf, void *gsub, void *featrec)
 	for (i = 0; i < nlookups; i++) {
 		lookup = lookups + U16(lookups, 2 + 2 * U16(feat, 4 + 2 * i));
 		type = U16(lookup, 0);
-		flag = U16(lookup, 2);
 		ntabs = U16(lookup, 4);
 		for (j = 0; j < ntabs; j++) {
 			tab = lookup + U16(lookup, 6 + 2 * j);
