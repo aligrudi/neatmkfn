@@ -240,7 +240,7 @@ static int trfn_name(char *dst, char *src, int codepoint)
 		}
 	}
 	ashape(dst, src);
-	return src && strcmp(src, ".medi") && strcmp(src, ".fina") &&
+	return *src && strcmp(src, ".medi") && strcmp(src, ".fina") &&
 			strcmp(src, ".init") && strcmp(src, ".isol");
 }
 
