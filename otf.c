@@ -85,8 +85,8 @@ static void otf_cmap4(void *otf, void *cmap4)
 		offset = U16(offsets, 2 * i);
 		if (offset) {
 			for (j = beg; j <= end; j++)
-				glyph_code[U16(offsets,
-						offset + (j - beg) * 2)] = j;
+				glyph_code[(U16(offsets + 2 * i,
+					offset + (j - beg) * 2) + delta) & 0xffff] = j;
 		} else {
 			for (j = beg; j <= end; j++)
 				glyph_code[(j + delta) & 0xffff] = j;
