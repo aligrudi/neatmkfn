@@ -327,7 +327,7 @@ static void otf_gpostype2(void *otf, char *feat, char *sub)
 	int vfmt2 = U16(sub, 6);
 	int fmtoff1, fmtoff2;
 	int vrlen;		/* valuerecord1 and valuerecord2 length */
-	int i, j;
+	int i, j, k, l;
 	vrlen = valuerecord_len(vfmt1) + valuerecord_len(vfmt2);
 	if (fmt == 1) {
 		int cov[NGLYPHS];
@@ -359,20 +359,37 @@ static void otf_gpostype2(void *otf, char *feat, char *sub)
 		int ngl2 = classdef(sub + U16(sub, 10), gl2, cls2);
 		int ncls1 = U16(sub, 12);
 		int ncls2 = U16(sub, 14);
-		for (i = 0; i < ngl1; i++) {
-			for (j = 0; j < ngl2; j++) {
-				if (cls1[i] >= ncls1 || cls2[j] >= ncls2)
-					continue;
-				fmtoff1 = 16 + (cls1[i] * ncls2 + cls2[j]) * vrlen;
+		for (i = 0; i < ncls1; i++) {
+			for (j = 0; j < ncls2; j++) {
+				int n1 = 0, n2 = 0;
+				fmtoff1 = 16 + (i * ncls2 + j) * vrlen;
 				fmtoff2 = fmtoff1 + valuerecord_len(vfmt1);
 				if (valuerecord_small(vfmt1, sub + fmtoff1) &&
 					valuerecord_small(vfmt2, sub + fmtoff2))
 					continue;
-				printf("gpos %s 2", feat);
-				printf(" %s", glyph_name[gl1[i]]);
-				valuerecord_print(vfmt1, sub + fmtoff1);
-				printf(" %s", glyph_name[gl2[j]]);
-				valuerecord_print(vfmt2, sub + fmtoff2);
+				for (k = 0; k < ngl1; k++)
+					if (cls1[k] == i)
+						n1++;
+				for (k = 0; k < ngl2; k++)
+					if (cls2[k] == j)
+						n2++;
+				printf("gpos %s %d", feat, n1 + n2);
+				l = 0;
+				for (k = 0; k < ngl1; k++) {
+					if (cls1[k] == i) {
+						printf(" %c%s", !l++ ? '=' : '|',
+							glyph_name[gl1[k]]);
+						valuerecord_print(vfmt1, sub + fmtoff1);
+					}
+				}
+				l = 0;
+				for (k = 0; k < ngl2; k++) {
+					if (cls2[k] == j) {
+						printf(" %c%s", !l++ ? '=' : '|',
+							glyph_name[gl2[k]]);
+						valuerecord_print(vfmt2, sub + fmtoff2);
+					}
+				}
 				printf("\n");
 			}
 		}
