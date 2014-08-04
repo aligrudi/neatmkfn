@@ -15,6 +15,9 @@
 
 #define TOKLEN		256
 
+static char *trfn_scripts;	/* filtered scripts */
+static char *trfn_langs;	/* filtered languages */
+
 static char *afm_charfield(char *s, char *d)
 {
 	while (*s && !isspace(*s) && *s != ';')
@@ -100,6 +103,33 @@ static int afm_read(void)
 	return 0;
 }
 
+/* return 1 if script script is to be included */
+int trfn_script(char *script, int nscripts)
+{
+	if (!trfn_scripts)
+		return nscripts == 1 || !script ||
+			!strcmp("DFLT", script) || !strcmp("latn", script);
+	if (!strcmp("help", trfn_scripts))
+		fprintf(stderr, "script: %s\n", script ? script : "");
+	if (strchr(script, ' '))
+		*strchr(script, ' ') = '\0';
+	return !!strstr(trfn_scripts, script);
+}
+
+/* return 1 if language lang is to be included */
+int trfn_lang(char *lang, int nlangs)
+{
+	if (!trfn_langs)
+		return nlangs == 1 || !lang;
+	if (!lang)
+		lang = "";
+	if (!strcmp("help", trfn_langs))
+		fprintf(stderr, "lang: %s\n", lang);
+	if (strchr(lang, ' '))
+		*strchr(lang, ' ') = '\0';
+	return !!strstr(trfn_langs, lang);
+}
+
 int otf_read(void);
 void otf_feat(int res, int kmin);
 
@@ -113,7 +143,9 @@ static char *usage =
 	"  -t name \tset font troff name\n"
 	"  -r res  \tset device resolution (720)\n"
 	"  -k kmin \tspecify the minimum amount of kerning (0)\n"
-	"  -b      \tinclude glyph bounding box\n";
+	"  -b      \tinclude glyph bounding boxes\n"
+	"  -S scrs \tcomma-separated list of scripts to include (help to list)\n"
+	"  -L langs\tcomma-separated list of languages to include (help to list)\n";
 
 int main(int argc, char *argv[])
 {
@@ -131,6 +163,9 @@ int main(int argc, char *argv[])
 		case 'k':
 			kmin = atoi(argv[i][2] ? argv[i] + 2 : argv[++i]);
 			break;
+		case 'L':
+			trfn_langs = argv[i][2] ? argv[i] + 2 : argv[++i];
+			break;
 		case 'o':
 			afm = 0;
 			break;
@@ -142,6 +177,9 @@ int main(int argc, char *argv[])
 			break;
 		case 's':
 			spc = 1;
+			break;
+		case 'S':
+			trfn_scripts = argv[i][2] ? argv[i] + 2 : argv[++i];
 			break;
 		case 't':
 			trfn_trfont(argv[i][2] ? argv[i] + 2 : argv[++i]);

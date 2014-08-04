@@ -5,3 +5,5 @@ void trfn_psfont(char *fontname);
 void trfn_print(void);
 void trfn_char(char *c, int n, int u, int wid, int llx, int lly, int urx, int ury);
 void trfn_kern(char *c1, char *c2, int x);
+int trfn_script(char *script, int nscripts);
+int trfn_lang(char *lang, int nlangs);

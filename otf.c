@@ -451,18 +451,27 @@ static void otf_gpos(void *otf, void *gpos)
 	void *scripts = gpos + U16(gpos, 4);
 	int nscripts, nlangs;
 	void *script;
-	void *grec;
+	void *grec, *lrec;
+	char tag[8];
 	int i, j;
 	nscripts = U16(scripts, 0);
 	for (i = 0; i < nscripts; i++) {
 		grec = scripts + 2 + 6 * i;
+		memcpy(tag, grec, 4);
+		tag[4] = '\0';
+		if (!trfn_script(tag, nscripts))
+			continue;
 		script = scripts + U16(grec, 4);
-		if (U16(script, 0))
-			otf_gposlang(otf, gpos, script + U16(script, 0));
 		nlangs = U16(script, 2);
-		for (j = 0; j < nlangs; j++)
-			otf_gposlang(otf, gpos, script +
-					U16(script, 4 + 6 * j + 4));
+		if (U16(script, 0) && trfn_lang(NULL, nlangs + (U16(script, 0) != 0)))
+			otf_gposlang(otf, gpos, script + U16(script, 0));
+		for (j = 0; j < nlangs; j++) {
+			lrec = script + 4 + 6 * j;
+			memcpy(tag, lrec, 4);
+			tag[4] = '\0';
+			if (trfn_lang(tag, nlangs + (U16(script, 0) != 0)))
+				otf_gposlang(otf, gpos, script + U16(lrec, 4));
+		}
 	}
 }
 
@@ -577,16 +586,27 @@ static void otf_gsub(void *otf, void *gsub)
 	void *scripts = gsub + U16(gsub, 4);
 	int nscripts, nlangs;
 	void *script;
+	void *grec, *lrec;
+	char tag[8];
 	int i, j;
 	nscripts = U16(scripts, 0);
 	for (i = 0; i < nscripts; i++) {
+		grec = scripts + 2 + 6 * i;
+		memcpy(tag, grec, 4);
+		tag[4] = '\0';
+		if (!trfn_script(tag, nscripts))
+			continue;
 		script = scripts + U16(scripts + 2 + 6 * i, 4);
 		nlangs = U16(script, 2);
-		if (U16(script, 0))
+		if (U16(script, 0) && trfn_lang(NULL, nlangs + (U16(script, 0) != 0)))
 			otf_gsublang(otf, gsub, script + U16(script, 0));
-		for (j = 0; j < nlangs; j++)
-			otf_gsublang(otf, gsub, script +
-					U16(script, 4 + 6 * j + 4));
+		for (j = 0; j < nlangs; j++) {
+			lrec = script + 4 + 6 * j;
+			memcpy(tag, lrec, 4);
+			tag[4] = '\0';
+			if (trfn_lang(tag, nlangs + (U16(script, 0) != 0)))
+				otf_gsublang(otf, gsub, script + U16(lrec, 4));
+		}
 	}
 }
 
