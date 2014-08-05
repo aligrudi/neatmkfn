@@ -131,7 +131,7 @@ int trfn_lang(char *lang, int nlangs)
 }
 
 int otf_read(void);
-void otf_feat(int res, int kmin);
+void otf_feat(int res, int kmin, int warn);
 
 static char *usage =
 	"Usage: mktrfn [options] <input >output\n"
@@ -145,20 +145,25 @@ static char *usage =
 	"  -k kmin \tspecify the minimum amount of kerning (0)\n"
 	"  -b      \tinclude glyph bounding boxes\n"
 	"  -S scrs \tcomma-separated list of scripts to include (help to list)\n"
-	"  -L langs\tcomma-separated list of languages to include (help to list)\n";
+	"  -L langs\tcomma-separated list of languages to include (help to list)\n"
+	"  -w      \twarn about unsupported font features\n";
 
 int main(int argc, char *argv[])
 {
 	int afm = 1;
-	int i = 1;
 	int res = 720;
 	int spc = 0;
 	int kmin = 0;
 	int bbox = 0;
+	int warn = 0;
+	int i;
 	for (i = 1; i < argc && argv[i][0] == '-'; i++) {
 		switch (argv[i][1]) {
 		case 'a':
 			afm = 1;
+			break;
+		case 'b':
+			bbox = 1;
 			break;
 		case 'k':
 			kmin = atoi(argv[i][2] ? argv[i] + 2 : argv[++i]);
@@ -184,8 +189,8 @@ int main(int argc, char *argv[])
 		case 't':
 			trfn_trfont(argv[i][2] ? argv[i] + 2 : argv[++i]);
 			break;
-		case 'b':
-			bbox = 1;
+		case 'w':
+			warn = 1;
 			break;
 		default:
 			printf("%s", usage);
@@ -199,7 +204,7 @@ int main(int argc, char *argv[])
 		otf_read();
 	trfn_print();
 	if (!afm)
-		otf_feat(res, kmin);
+		otf_feat(res, kmin, warn);
 	trfn_done();
 	return 0;
 }

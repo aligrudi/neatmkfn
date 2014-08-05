@@ -38,6 +38,7 @@ static int glyph_n;
 static int upm;			/* units per em */
 static int res;			/* device resolution */
 static int kmin;		/* minimum kerning value */
+static int warn;
 
 static char *macset[];
 
@@ -50,6 +51,17 @@ static int uwid(int w)
 {
 	int d = 7200 / res;
 	return (w < 0 ? owid(w) - d / 2 : owid(w) + d / 2) / d;
+}
+
+/* report unsupported otf tables */
+static void otf_unsupported(char *sub, int type, int fmt)
+{
+	if (warn) {
+		fprintf(stderr, "neatmkfn: unsupported %s lookup %d", sub, type);
+		if (fmt > 0)
+			fprintf(stderr, " format %d", fmt);
+		fprintf(stderr, "\n");
+	}
 }
 
 /* find the otf table with the given name */
@@ -295,6 +307,7 @@ static int valuerecord_small(int fmt, void *rec)
 	return 1;
 }
 
+/* single adjustment positioning */
 static void otf_gpostype1(void *otf, void *sub, char *feat)
 {
 	int fmt = U16(sub, 0);
@@ -321,13 +334,14 @@ static void otf_gpostype1(void *otf, void *sub, char *feat)
 	}
 }
 
+/* pair adjustment positioning */
 static void otf_gpostype2(void *otf, void *sub, char *feat)
 {
 	int fmt = U16(sub, 0);
-	int vfmt1 = U16(sub, 4);
-	int vfmt2 = U16(sub, 6);
+	int vfmt1 = U16(sub, 4);	/* valuerecord 1 */
+	int vfmt2 = U16(sub, 6);	/* valuerecord 2 */
 	int fmtoff1, fmtoff2;
-	int vrlen;		/* valuerecord1 and valuerecord2 length */
+	int vrlen;			/* the length of vfmt1 and vfmt2 */
 	int i, j, k, l;
 	vrlen = valuerecord_len(vfmt1) + valuerecord_len(vfmt2);
 	if (fmt == 1) {
@@ -397,6 +411,7 @@ static void otf_gpostype2(void *otf, void *sub, char *feat)
 	}
 }
 
+/* cursive attachment positioning */
 static void otf_gpostype3(void *otf, void *sub, char *feat)
 {
 	int fmt = U16(sub, 0);
@@ -424,6 +439,7 @@ static void otf_gpostype3(void *otf, void *sub, char *feat)
 	}
 }
 
+/* parse the given gpos feature table */
 static void otf_gposfeatrec(void *otf, void *gpos, void *featrec)
 {
 	void *feats = gpos + U16(gpos, 6);
@@ -441,16 +457,24 @@ static void otf_gposfeatrec(void *otf, void *gpos, void *featrec)
 		ntabs = U16(lookup, 4);
 		for (j = 0; j < ntabs; j++) {
 			tab = lookup + U16(lookup, 6 + 2 * j);
-			if (type == 1)
+			switch (type) {
+			case 1:
 				otf_gpostype1(otf, tab, tag);
-			if (type == 2)
+				break;
+			case 2:
 				otf_gpostype2(otf, tab, tag);
-			if (type == 3)
+				break;
+			case 3:
 				otf_gpostype3(otf, tab, tag);
+				break;
+			default:
+				otf_unsupported("GPOS", type, 0);
+			}
 		}
 	}
 }
 
+/* parse the given gpos language table and its feature tables */
 static void otf_gposlang(void *otf, void *gpos, void *lang)
 {
 	void *feats = gpos + U16(gpos, 6);
@@ -544,6 +568,7 @@ static void gctx_lookahead(struct gctx *ctx, int patlen)
 			printf(" %c%s", !j ? '=' : '|', glyph_name[ctx->l[i][j]]);
 }
 
+/* single substitution */
 static void otf_gsubtype1(void *otf, void *sub, char *feat, struct gctx *ctx)
 {
 	int cov[NGLYPHS];
@@ -575,6 +600,7 @@ static void otf_gsubtype1(void *otf, void *sub, char *feat, struct gctx *ctx)
 	}
 }
 
+/* alternate substitution */
 static void otf_gsubtype3(void *otf, void *sub, char *feat, struct gctx *ctx)
 {
 	int cov[NGLYPHS];
@@ -598,6 +624,7 @@ static void otf_gsubtype3(void *otf, void *sub, char *feat, struct gctx *ctx)
 	}
 }
 
+/* ligature substitution */
 static void otf_gsubtype4(void *otf, void *sub, char *feat, struct gctx *ctx)
 {
 	int fmt = U16(sub, 0);
@@ -625,6 +652,7 @@ static void otf_gsubtype4(void *otf, void *sub, char *feat, struct gctx *ctx)
 	}
 }
 
+/* chaining contextual substitution */
 static void otf_gsubtype6(void *otf, void *sub, char *feat, void *gsub)
 {
 	struct gctx ctx = {{NULL}};
@@ -634,8 +662,10 @@ static void otf_gsubtype6(void *otf, void *sub, char *feat, void *gsub)
 	int gbank_pos = 0;
 	int n, i, j, nsub;
 	int off = 2;
-	if (fmt != 3)
+	if (fmt != 3) {
+		otf_unsupported("GSUB", 6, fmt);
 		return;
+	}
 	ctx.bn = U16(sub, off);
 	for (i = 0; i < ctx.bn; i++) {
 		n = coverage(sub + U16(sub, off + 2 + 2 * i), gbank + gbank_pos);
@@ -679,6 +709,7 @@ static void otf_gsubtype6(void *otf, void *sub, char *feat, void *gsub)
 	}
 }
 
+/* parse the given gsub feature table */
 static void otf_gsubfeatrec(void *otf, void *gsub, void *featrec)
 {
 	void *feats = gsub + U16(gsub, 6);
@@ -696,18 +727,27 @@ static void otf_gsubfeatrec(void *otf, void *gsub, void *featrec)
 		int ntabs = U16(lookup, 4);
 		for (j = 0; j < ntabs; j++) {
 			void *tab = lookup + U16(lookup, 6 + 2 * j);
-			if (type == 1)
+			switch (type) {
+			case 1:
 				otf_gsubtype1(otf, tab, tag, NULL);
-			if (type == 3)
+				break;
+			case 3:
 				otf_gsubtype3(otf, tab, tag, NULL);
-			if (type == 4)
+				break;
+			case 4:
 				otf_gsubtype4(otf, tab, tag, NULL);
-			if (type == 6)
+				break;
+			case 6:
 				otf_gsubtype6(otf, tab, tag, gsub);
+				break;
+			default:
+				otf_unsupported("GSUB", type, 0);
+			}
 		}
 	}
 }
 
+/* parse the given gsub language table and its feature tables */
 static void otf_gsublang(void *otf, void *gsub, void *lang)
 {
 	void *feats = gsub + U16(gsub, 6);
@@ -789,10 +829,11 @@ int otf_read(void)
 	return 0;
 }
 
-void otf_feat(int r, int k)
+void otf_feat(int r, int k, int w)
 {
 	res = r;
 	kmin = k;
+	warn = w;
 	if (otf_table(buf, "GSUB"))
 		otf_gsub(buf, otf_table(buf, "GSUB"));
 	if (otf_table(buf, "GPOS"))
