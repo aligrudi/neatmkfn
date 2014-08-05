@@ -319,7 +319,7 @@ static void otf_gpostype1(void *otf, void *sub, char *feat)
 	ncov = coverage(sub + U16(sub, 2), cov);
 	if (fmt == 1) {
 		for (i = 0; i < ncov; i++) {
-			printf("gpos %s %s", feat, glyph_name[cov[i]]);
+			printf("gpos %s 1 =%s", feat, glyph_name[cov[i]]);
 			valuerecord_print(vfmt, sub + 6);
 			printf("\n");
 		}
@@ -327,7 +327,7 @@ static void otf_gpostype1(void *otf, void *sub, char *feat)
 	if (fmt == 2) {
 		nvals = U16(sub, 6);
 		for (i = 0; i < nvals; i++) {
-			printf("gpos %s %s", feat, glyph_name[cov[i]]);
+			printf("gpos %s 1 =%s", feat, glyph_name[cov[i]]);
 			valuerecord_print(vfmt, sub + 8 + i * vlen);
 			printf("\n");
 		}
@@ -359,9 +359,9 @@ static void otf_gpostype2(void *otf, void *sub, char *feat)
 					valuerecord_small(vfmt2, c2 + fmtoff2))
 					continue;
 				printf("gpos %s 2", feat);
-				printf(" %s", glyph_name[cov[i]]);
+				printf(" =%s", glyph_name[cov[i]]);
 				valuerecord_print(vfmt1, c2 + fmtoff1);
-				printf(" %s", glyph_name[second]);
+				printf(" =%s", glyph_name[second]);
 				valuerecord_print(vfmt2, c2 + fmtoff2);
 				printf("\n");
 			}
