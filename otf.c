@@ -444,19 +444,24 @@ static void otf_gposfeatrec(void *otf, void *gpos, void *featrec)
 {
 	void *feats = gpos + U16(gpos, 6);
 	void *lookups = gpos + U16(gpos, 8);
-	void *feat, *lookup, *tab;
-	int nlookups, type, ntabs;
+	void *feat;
+	int nlookups;
 	char tag[8] = "";
 	int i, j;
 	memcpy(tag, featrec, 4);
 	feat = feats + U16(featrec, 4);
 	nlookups = U16(feat, 2);
 	for (i = 0; i < nlookups; i++) {
-		lookup = lookups + U16(lookups, 2 + 2 * U16(feat, 4 + 2 * i));
-		type = U16(lookup, 0);
-		ntabs = U16(lookup, 4);
+		void *lookup = lookups + U16(lookups, 2 + 2 * U16(feat, 4 + 2 * i));
+		int ltype = U16(lookup, 0);
+		int ntabs = U16(lookup, 4);
 		for (j = 0; j < ntabs; j++) {
-			tab = lookup + U16(lookup, 6 + 2 * j);
+			void *tab = lookup + U16(lookup, 6 + 2 * j);
+			int type = ltype;
+			if (type == 9) {	/* extension positioning */
+				type = U16(tab, 2);
+				tab = tab + U32(tab, 4);
+			}
 			switch (type) {
 			case 1:
 				otf_gpostype1(otf, tab, tag);
@@ -694,11 +699,16 @@ static void otf_gsubtype6(void *otf, void *sub, char *feat, void *gsub)
 	for (i = 0; i < nsub && i < 1; i++) {
 		int lidx = U16(sub, off + 2 + 4 * i + 2);
 		void *lookup = lookups + U16(lookups, 2 + 2 * lidx);
-		int type = U16(lookup, 0);
+		int ltype = U16(lookup, 0);
 		int ntabs = U16(lookup, 4);
 		ctx.seqidx = U16(sub, off + 2 + 4 * i);
 		for (j = 0; j < ntabs; j++) {
 			void *tab = lookup + U16(lookup, 6 + 2 * j);
+			int type = ltype;
+			if (type == 7) {	/* extension substitution */
+				type = U16(tab, 2);
+				tab = tab + U32(tab, 4);
+			}
 			if (type == 1)
 				otf_gsubtype1(otf, tab, feat, &ctx);
 			if (type == 3)
@@ -723,10 +733,15 @@ static void otf_gsubfeatrec(void *otf, void *gsub, void *featrec)
 	nlookups = U16(feat, 2);
 	for (i = 0; i < nlookups; i++) {
 		void *lookup = lookups + U16(lookups, 2 + 2 * U16(feat, 4 + 2 * i));
-		int type = U16(lookup, 0);
+		int ltype = U16(lookup, 0);
 		int ntabs = U16(lookup, 4);
 		for (j = 0; j < ntabs; j++) {
 			void *tab = lookup + U16(lookup, 6 + 2 * j);
+			int type = ltype;
+			if (type == 7) {	/* extension substitution */
+				type = U16(tab, 2);
+				tab = tab + U32(tab, 4);
+			}
 			switch (type) {
 			case 1:
 				otf_gsubtype1(otf, tab, tag, NULL);
