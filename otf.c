@@ -22,6 +22,7 @@
 #define CMAPLEN		4	/* cmap header length */
 #define CMAPRECLEN	8	/* cmap record length */
 #define CMAP4LEN	8	/* format 4 cmap subtable header length */
+#define GCTXLEN		16	/* number of context backtrack coverage arrays */
 
 typedef unsigned int u32;
 typedef unsigned short u16;
@@ -294,7 +295,7 @@ static int valuerecord_small(int fmt, void *rec)
 	return 1;
 }
 
-static void otf_gpostype1(void *otf, char *feat, char *sub)
+static void otf_gpostype1(void *otf, void *sub, char *feat)
 {
 	int fmt = U16(sub, 0);
 	int vfmt = U16(sub, 4);
@@ -320,7 +321,7 @@ static void otf_gpostype1(void *otf, char *feat, char *sub)
 	}
 }
 
-static void otf_gpostype2(void *otf, char *feat, char *sub)
+static void otf_gpostype2(void *otf, void *sub, char *feat)
 {
 	int fmt = U16(sub, 0);
 	int vfmt1 = U16(sub, 4);
@@ -396,7 +397,7 @@ static void otf_gpostype2(void *otf, char *feat, char *sub)
 	}
 }
 
-static void otf_gpostype3(void *otf, char *feat, char *sub)
+static void otf_gpostype3(void *otf, void *sub, char *feat)
 {
 	int fmt = U16(sub, 0);
 	int cov[NGLYPHS];
@@ -441,11 +442,11 @@ static void otf_gposfeatrec(void *otf, void *gpos, void *featrec)
 		for (j = 0; j < ntabs; j++) {
 			tab = lookup + U16(lookup, 6 + 2 * j);
 			if (type == 1)
-				otf_gpostype1(otf, tag, tab);
+				otf_gpostype1(otf, tab, tag);
 			if (type == 2)
-				otf_gpostype2(otf, tag, tab);
+				otf_gpostype2(otf, tab, tag);
 			if (type == 3)
-				otf_gpostype3(otf, tag, tab);
+				otf_gpostype3(otf, tab, tag);
 		}
 	}
 }
@@ -492,7 +493,58 @@ static void otf_gpos(void *otf, void *gpos)
 	}
 }
 
-static void otf_gsubtype1(void *otf, char *feat, char *sub)
+/* gsub context */
+struct gctx {
+	int *b[GCTXLEN], blen[GCTXLEN];	/* backtrack coverage arrays */
+	int *i[GCTXLEN], ilen[GCTXLEN];	/* input coverage arrays */
+	int *l[GCTXLEN], llen[GCTXLEN];	/* lookahead coverage arrays*/
+	int bn, in, ln;			/* size of b[], i[], l[] */
+	int seqidx;			/* sequence index */
+};
+
+static int gctx_len(struct gctx *ctx, int patlen)
+{
+	int i, n = 0;
+	if (!ctx)
+		return 0;
+	for (i = 0; i < ctx->bn; i++)
+		n += ctx->blen[i];
+	for (i = 0; i < ctx->seqidx; i++)
+		n += ctx->ilen[i];
+	for (i = ctx->seqidx + patlen; i < ctx->in; i++)
+		n += ctx->ilen[i];
+	for (i = 0; i < ctx->ln; i++)
+		n += ctx->llen[i];
+	return n;
+}
+
+static void gctx_backtrack(struct gctx *ctx)
+{
+	int i, j;
+	if (!ctx)
+		return;
+	for (i = 0; i < ctx->bn; i++)
+		for (j = 0; j < ctx->blen[i]; j++)
+			printf(" %c%s", !j ? '=' : '|', glyph_name[ctx->b[i][j]]);
+	for (i = 0; i < ctx->seqidx; i++)
+		for (j = 0; j < ctx->ilen[i]; j++)
+			printf(" %c%s", !j ? '=' : '|', glyph_name[ctx->i[i][j]]);
+}
+
+static void gctx_lookahead(struct gctx *ctx, int patlen)
+{
+	int i, j;
+	if (!ctx)
+		return;
+	for (i = ctx->seqidx + patlen; i < ctx->in; i++)
+		for (j = 0; j < ctx->ilen[i]; j++)
+			printf(" %c%s", !j ? '=' : '|', glyph_name[ctx->i[i][j]]);
+	for (i = 0; i < ctx->ln; i++)
+		for (j = 0; j < ctx->llen[i]; j++)
+			printf(" %c%s", !j ? '=' : '|', glyph_name[ctx->l[i][j]]);
+}
+
+static void otf_gsubtype1(void *otf, void *sub, char *feat, struct gctx *ctx)
 {
 	int cov[NGLYPHS];
 	int fmt = U16(sub, 0);
@@ -501,21 +553,29 @@ static void otf_gsubtype1(void *otf, char *feat, char *sub)
 	int i;
 	ncov = coverage(sub + U16(sub, 2), cov);
 	if (fmt == 1) {
-		for (i = 0; i < ncov; i++)
-			printf("gsub %s 2 -%s +%s\n",
-				feat, glyph_name[cov[i]],
+		for (i = 0; i < ncov; i++) {
+			printf("gsub %s %d", feat, 2 + gctx_len(ctx, 1));
+			gctx_backtrack(ctx);
+			printf(" -%s +%s", glyph_name[cov[i]],
 				glyph_name[cov[i] + S16(sub, 4)]);
+			gctx_lookahead(ctx, 1);
+			printf("\n");
+		}
 	}
 	if (fmt == 2) {
 		n = U16(sub, 4);
-		for (i = 0; i < n; i++)
-			printf("gsub %s 2 -%s +%s\n",
-				feat, glyph_name[cov[i]],
+		for (i = 0; i < n; i++) {
+			printf("gsub %s %d", feat, 2 + gctx_len(ctx, 1));
+			gctx_backtrack(ctx);
+			printf(" -%s +%s", glyph_name[cov[i]],
 				glyph_name[U16(sub, 6 + 2 * i)]);
+			gctx_lookahead(ctx, 1);
+			printf("\n");
+		}
 	}
 }
 
-static void otf_gsubtype3(void *otf, char *feat, char *sub)
+static void otf_gsubtype3(void *otf, void *sub, char *feat, struct gctx *ctx)
 {
 	int cov[NGLYPHS];
 	int fmt = U16(sub, 0);
@@ -527,14 +587,18 @@ static void otf_gsubtype3(void *otf, char *feat, char *sub)
 	for (i = 0; i < n; i++) {
 		void *alt = sub + U16(sub, 6 + 2 * i);
 		int nalt = U16(alt, 0);
-		for (j = 0; j < nalt; j++)
-			printf("gsub %s 2 -%s +%s\n",
-				feat, glyph_name[cov[i]],
+		for (j = 0; j < nalt; j++) {
+			printf("gsub %s %d", feat, 2 + gctx_len(ctx, 1));
+			gctx_backtrack(ctx);
+			printf(" -%s +%s", glyph_name[cov[i]],
 				glyph_name[U16(alt, 2 + 2 * j)]);
+			gctx_lookahead(ctx, 1);
+			printf("\n");
+		}
 	}
 }
 
-static void otf_gsubtype4(void *otf, char *feat, char *sub)
+static void otf_gsubtype4(void *otf, void *sub, char *feat, struct gctx *ctx)
 {
 	int fmt = U16(sub, 0);
 	int cov[NGLYPHS];
@@ -549,11 +613,68 @@ static void otf_gsubtype4(void *otf, char *feat, char *sub)
 		for (j = 0; j < nset; j++) {
 			void *lig = set + U16(set, 2 + 2 * j);
 			int nlig = U16(lig, 2);
-			printf("gsub %s %d -%s",
-				feat, nlig + 1, glyph_name[cov[i]]);
+			printf("gsub %s %d", feat, nlig + 1 + gctx_len(ctx, nlig));
+			gctx_backtrack(ctx);
+			printf(" -%s", glyph_name[cov[i]]);
 			for (k = 0; k < nlig - 1; k++)
 				printf(" -%s", glyph_name[U16(lig, 4 + 2 * k)]);
-			printf(" +%s\n", glyph_name[U16(lig, 0)]);
+			printf(" +%s", glyph_name[U16(lig, 0)]);
+			gctx_lookahead(ctx, nlig);
+			printf("\n");
+		}
+	}
+}
+
+static void otf_gsubtype6(void *otf, void *sub, char *feat, void *gsub)
+{
+	struct gctx ctx = {{NULL}};
+	void *lookups = gsub + U16(gsub, 8);
+	int fmt = U16(sub, 0);
+	int gbank[NGLYPHS];
+	int gbank_pos = 0;
+	int n, i, j, nsub;
+	int off = 2;
+	if (fmt != 3)
+		return;
+	ctx.bn = U16(sub, off);
+	for (i = 0; i < ctx.bn; i++) {
+		n = coverage(sub + U16(sub, off + 2 + 2 * i), gbank + gbank_pos);
+		ctx.b[i] = gbank + gbank_pos;
+		ctx.blen[i] = n;
+		gbank_pos += n;
+	}
+	off += 2 + 2 * ctx.bn;
+	ctx.in = U16(sub, off);
+	for (i = 0; i < ctx.in; i ++) {
+		n = coverage(sub + U16(sub, off + 2 + 2 * i), gbank + gbank_pos);
+		ctx.i[i] = gbank + gbank_pos;
+		ctx.ilen[i] = n;
+		gbank_pos += n;
+	}
+	off += 2 + 2 * ctx.in;
+	ctx.ln = U16(sub, off);
+	for (i = 0; i < ctx.ln; i ++) {
+		n = coverage(sub + U16(sub, off + 2 + 2 * i), gbank + gbank_pos);
+		ctx.l[i] = gbank + gbank_pos;
+		ctx.llen[i] = n;
+		gbank_pos += n;
+	}
+	off += 2 + 2 * ctx.ln;
+	nsub = U16(sub, off);	/* nsub > 1 is not supported */
+	for (i = 0; i < nsub && i < 1; i++) {
+		int lidx = U16(sub, off + 2 + 4 * i + 2);
+		void *lookup = lookups + U16(lookups, 2 + 2 * lidx);
+		int type = U16(lookup, 0);
+		int ntabs = U16(lookup, 4);
+		ctx.seqidx = U16(sub, off + 2 + 4 * i);
+		for (j = 0; j < ntabs; j++) {
+			void *tab = lookup + U16(lookup, 6 + 2 * j);
+			if (type == 1)
+				otf_gsubtype1(otf, tab, feat, &ctx);
+			if (type == 3)
+				otf_gsubtype3(otf, tab, feat, &ctx);
+			if (type == 4)
+				otf_gsubtype4(otf, tab, feat, &ctx);
 		}
 	}
 }
@@ -562,25 +683,27 @@ static void otf_gsubfeatrec(void *otf, void *gsub, void *featrec)
 {
 	void *feats = gsub + U16(gsub, 6);
 	void *lookups = gsub + U16(gsub, 8);
-	void *feat, *lookup, *tab;
-	int nlookups, type, ntabs;
+	void *feat;
+	int nlookups;
 	char tag[8] = "";
 	int i, j;
 	memcpy(tag, featrec, 4);
 	feat = feats + U16(featrec, 4);
 	nlookups = U16(feat, 2);
 	for (i = 0; i < nlookups; i++) {
-		lookup = lookups + U16(lookups, 2 + 2 * U16(feat, 4 + 2 * i));
-		type = U16(lookup, 0);
-		ntabs = U16(lookup, 4);
+		void *lookup = lookups + U16(lookups, 2 + 2 * U16(feat, 4 + 2 * i));
+		int type = U16(lookup, 0);
+		int ntabs = U16(lookup, 4);
 		for (j = 0; j < ntabs; j++) {
-			tab = lookup + U16(lookup, 6 + 2 * j);
+			void *tab = lookup + U16(lookup, 6 + 2 * j);
 			if (type == 1)
-				otf_gsubtype1(otf, tag, tab);
+				otf_gsubtype1(otf, tab, tag, NULL);
 			if (type == 3)
-				otf_gsubtype3(otf, tag, tab);
+				otf_gsubtype3(otf, tab, tag, NULL);
 			if (type == 4)
-				otf_gsubtype4(otf, tag, tab);
+				otf_gsubtype4(otf, tab, tag, NULL);
+			if (type == 6)
+				otf_gsubtype6(otf, tab, tag, gsub);
 		}
 	}
 }
