@@ -9,8 +9,8 @@ TP="/root/queue/devutf"
 RES="720"
 # pattern of ligatures to ignore
 LIGIGN="\(ct\|st\|sp\|Rp\)"
-# use lcdf-typetools instead of fontforge for otf files
-USELCDF="0"
+# minimum amount of kerning to include
+MINKERN="5"
 
 # creating DESC
 mkdir -p $TP
@@ -28,19 +28,22 @@ function afmconv
 		sed "/^ligatures /s/ $LIGIGN//g" >$TP/$1
 }
 
-# converting otf and ttf fonts; needs fontforge or lcdf-typetools
+# ttfconv troff_name postscript_name font_filename
+function ttfconv
+{
+	echo $1
+	cat $3 | ./mkfn -b -o -r$RES -t $1 -p $2 -k$MINKERN | \
+		sed "/^ligatures /s/ $LIGIGN//g" >$TP/$1
+}
+
+# otfconv troff_name postscript_name font_filename
 function otfconv
 {
-	FN="$1"
-	AFM="/tmp/.neatmkfn.afm"
-	if [ "$USELCDF" == "1" ]; then
-		cat $2 | cfftot1 2>/dev/null | t1rawafm >$AFM 2>/dev/null
-	else
-		echo -e "Open(\"$2\")\nGenerate(\"$AFM\")" | fontforge >/dev/null 2>&1
-	fi
-	cat $AFM | ./mkfn -b -a -r$RES -t $FN -p $FN -k5 | \
-		sed "/^ligatures /s/ $LIGIGN//g" >$TP/$FN
-	rm $AFM
+	TTF="/tmp/.neatmkfn.ttf"
+	# convert the OTF file to TTF using fontforge
+	echo -e "Open(\"$3\")\nGenerate(\"$TTF\")" | fontforge >/dev/null 2>&1
+	ttfconv $1 $2 $TTF
+	rm $TTF
 }
 
 # The standard fonts
@@ -88,12 +91,18 @@ afmconv ZD	ZapfDingbats		$FP/d050000l.afm
 # can be obtained by dropping its extension.  Otherwise, remove the
 # -p argument of mkfn in otfconv function.
 
-for f in $FP/*.otf $FP/*.ttf
+for f in $FP/*.ttf
+do
+	if [ -e "$f" ]; then
+		FN="`basename $f .ttf`"
+		ttfconv $FN `basename $FN .ttf` $f
+	fi
+done
+
+for f in $FP/*.otf
 do
 	if [ -e "$f" ]; then
 		FN="`basename $f .otf`"
-		FN="`basename $FN .ttf`"
-		echo $FN
-		otfconv $FN $f
+		otfconv $FN `basename $FN .otf` $f
 	fi
 done
