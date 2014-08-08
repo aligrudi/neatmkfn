@@ -380,7 +380,7 @@ static void otf_gpostype2(void *otf, void *sub, char *feat)
 			for (j = 0; j < nc2; j++) {
 				int second = U16(c2 + 2 + (2 + vrlen) * j, 0);
 				fmtoff1 = 2 + (2 + vrlen) * j + 2;
-				fmtoff2 = fmtoff1 + valuerecord_len(vfmt2);
+				fmtoff2 = fmtoff1 + valuerecord_len(vfmt1);
 				if (valuerecord_small(vfmt1, c2 + fmtoff1) &&
 					valuerecord_small(vfmt2, c2 + fmtoff2))
 					continue;
