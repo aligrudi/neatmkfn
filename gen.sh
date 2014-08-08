@@ -1,7 +1,7 @@
 #!/bin/sh
 # Generate a neatroff output device
 
-# ghostscript font directory; it may contain otf and ttf files also
+# ghostscript font directory; also $FP/afm/, $FP/ttf/, $FP/otf/
 FP="/mnt/file/gs/fonts"
 # output device directory
 TP="/root/queue/devutf"
@@ -87,22 +87,21 @@ afmconv CX	Courier-BoldOblique	$FP/n022024l.afm
 afmconv ZI	ZapfChancery-MediumItalic	$FP/z003034l.afm
 afmconv ZD	ZapfDingbats		$FP/d050000l.afm
 
-# For otf and ttf files, we assume the postscript name of the font
-# can be obtained by dropping its extension.  Otherwise, remove the
-# -p argument of mkfn in otfconv function.
+# For afm, ttf and otf files, we assume the postscript name of
+# the font can be obtained by dropping its extension.  Otherwise,
+# remove the -p argument of mkfn in *conv function.
 
-for f in $FP/*.ttf
+find $FP/afm/ -name '*.afm' | while read FN
 do
-	if [ -e "$f" ]; then
-		FN="`basename $f .ttf`"
-		ttfconv $FN `basename $FN .ttf` $f
-	fi
+	afmconv `basename $FN .afm` `basename $FN .afm` $FN
 done
 
-for f in $FP/*.otf
+find $FP/ttf/ -name '*.ttf' | while read FN
 do
-	if [ -e "$f" ]; then
-		FN="`basename $f .otf`"
-		otfconv $FN `basename $FN .otf` $f
-	fi
+	ttfconv `basename $FN .ttf` `basename $FN .ttf` $FN
+done
+
+find $FP/otf/ -name '*.otf' | while read FN
+do
+	otfconv `basename $FN .otf` `basename $FN .otf` $FN
 done
