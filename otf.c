@@ -80,6 +80,29 @@ static void *otf_table(void *otf, char *name)
 	return NULL;
 }
 
+/* obtain postscript font name from name table */
+static void otf_name(void *otf, void *tab)
+{
+	char name[256];
+	void *str = tab + U16(tab, 4);		/* storage area */
+	int n = U16(tab, 2);			/* number of name records */
+	int i;
+	for (i = 0; i < n; i++) {
+		void *rec = tab + 6 + 12 * i;
+		int pid = U16(rec, 0);		/* platform id */
+		int eid = U16(rec, 2);		/* encoding id */
+		int lid = U16(rec, 4);		/* language id */
+		int nid = U16(rec, 6);		/* name id */
+		int len = U16(rec, 8);		/* string length */
+		int off = U16(rec, 10);		/* string offset  */
+		if (pid == 1 && eid == 0 && lid == 0 && nid == 6) {
+			memcpy(name, str + off, len);
+			name[len] = '\0';
+			trfn_psfont(name);
+		}
+	}
+}
+
 /* parse otf cmap format 4 subtable */
 static void otf_cmap4(void *otf, void *cmap4)
 {
@@ -817,6 +840,7 @@ int otf_read(void)
 	if (xread(0, buf, sizeof(buf)) <= 0)
 		return 1;
 	upm = U16(otf_table(buf, "head"), 18);
+	otf_name(buf, otf_table(buf, "name"));
 	otf_cmap(buf, otf_table(buf, "cmap"));
 	otf_post(buf, otf_table(buf, "post"));
 	if (otf_table(buf, "glyf"))
