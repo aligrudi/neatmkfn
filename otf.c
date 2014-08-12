@@ -689,7 +689,11 @@ static int otf_lang(void *otf, void *gtab, void *lang, struct otflookup *lookups
 
 static int lookupcmp(void *v1, void *v2)
 {
-	return ((struct otflookup *) v1)->lookup - ((struct otflookup *) v2)->lookup;
+	struct otflookup *l1 = v1;
+	struct otflookup *l2 = v2;
+	if (trfn_featrank(l1->feat) != trfn_featrank(l2->feat))
+		return trfn_featrank(l1->feat) - trfn_featrank(l2->feat);
+	return l1->lookup - l2->lookup;
 }
 
 /* extract lookup tables for all features of the given gsub/gpos table */

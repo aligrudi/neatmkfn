@@ -2,11 +2,16 @@ MKTRFN
 ======
 
 The mktrfn program creates troff font description files for neatroff
-from AFM (Adobe Font Metrics) files.  TrueType and OpenType fonts can
-be first converted to AFM using programs like fontforge or
-lcdf-typetools (see ./gen.sh, for instance).  See the output of
-"mktrfn -h" for the available options.
+from AFM (Adobe Font Metrics) and TTF (TrueType Font) files.  OpenType
+fonts can be first converted to TTF (see ./gen.sh, for instance).  See
+the output of "mktrfn -h" for the available options.
 
 The included ./gen.sh script invokes mktrfn to create a complete
 output device for neatroff.  Change the variables in that file before
 running it.
+
+By default, font features are ordered as specified in the font.
+However, in some languages like Arabic, some features should be
+applied first.  The -O argument of mkfn allows specifying the features
+to output before any other feature.  For instance for Arabic, one
+should pass "-O ccmp,rlig,calt,liga,dlig,cswh,mset" to mkfn.

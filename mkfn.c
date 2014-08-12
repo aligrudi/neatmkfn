@@ -17,6 +17,7 @@
 
 static char *trfn_scripts;	/* filtered scripts */
 static char *trfn_langs;	/* filtered languages */
+static char *trfn_featranks;	/* manual feature ordering */
 
 static char *afm_charfield(char *s, char *d)
 {
@@ -130,6 +131,12 @@ int trfn_lang(char *lang, int nlangs)
 	return !!strstr(trfn_langs, lang);
 }
 
+int trfn_featrank(char *feat)
+{
+	char *s = trfn_featranks ? strstr(trfn_featranks, feat) : NULL;
+	return s ? s - trfn_featranks : 1000;
+}
+
 int otf_read(void);
 void otf_feat(int res, int kmin, int warn);
 
@@ -146,6 +153,7 @@ static char *usage =
 	"  -b      \tinclude glyph bounding boxes\n"
 	"  -S scrs \tcomma-separated list of scripts to include (help to list)\n"
 	"  -L langs\tcomma-separated list of languages to include (help to list)\n"
+	"  -O order\tfeatures to apply first (required only for some languages)\n"
 	"  -w      \twarn about unsupported font features\n";
 
 int main(int argc, char *argv[])
@@ -173,6 +181,9 @@ int main(int argc, char *argv[])
 			break;
 		case 'o':
 			afm = 0;
+			break;
+		case 'O':
+			trfn_featranks = argv[i][2] ? argv[i] + 2 : argv[++i];
 			break;
 		case 'p':
 			trfn_psfont(argv[i][2] ? argv[i] + 2 : argv[++i]);
