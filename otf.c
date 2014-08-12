@@ -7,6 +7,7 @@
 #include "trfn.h"
 
 #define NGLYPHS		(1 << 14)
+#define NLOOKUPS	(1 << 12)
 #define GNLEN		(64)
 #define BUFLEN		(1 << 23)
 #define NGRPS		2048
@@ -474,89 +475,6 @@ static void otf_gpostype3(void *otf, void *sub, char *feat)
 	}
 }
 
-/* parse the given gpos feature table */
-static void otf_gposfeatrec(void *otf, void *gpos, void *featrec)
-{
-	void *feats = gpos + U16(gpos, 6);
-	void *lookups = gpos + U16(gpos, 8);
-	void *feat;
-	int nlookups;
-	char tag[8] = "";
-	int i, j;
-	memcpy(tag, featrec, 4);
-	feat = feats + U16(featrec, 4);
-	nlookups = U16(feat, 2);
-	for (i = 0; i < nlookups; i++) {
-		void *lookup = lookups + U16(lookups, 2 + 2 * U16(feat, 4 + 2 * i));
-		int ltype = U16(lookup, 0);
-		int ntabs = U16(lookup, 4);
-		for (j = 0; j < ntabs; j++) {
-			void *tab = lookup + U16(lookup, 6 + 2 * j);
-			int type = ltype;
-			if (type == 9) {	/* extension positioning */
-				type = U16(tab, 2);
-				tab = tab + U32(tab, 4);
-			}
-			switch (type) {
-			case 1:
-				otf_gpostype1(otf, tab, tag);
-				break;
-			case 2:
-				otf_gpostype2(otf, tab, tag);
-				break;
-			case 3:
-				otf_gpostype3(otf, tab, tag);
-				break;
-			default:
-				otf_unsupported("GPOS", type, 0);
-			}
-		}
-	}
-}
-
-/* parse the given gpos language table and its feature tables */
-static void otf_gposlang(void *otf, void *gpos, void *lang)
-{
-	void *feats = gpos + U16(gpos, 6);
-	int featidx = U16(lang, 2);
-	int nfeat = U16(lang, 4);
-	int i;
-	if (featidx != 0xffff)
-		otf_gposfeatrec(otf, gpos, feats + 2 + 6 * featidx);
-	for (i = 0; i < nfeat; i++)
-		otf_gposfeatrec(otf, gpos,
-				feats + 2 + 6 * U16(lang, 6 + 2 * i));
-}
-
-static void otf_gpos(void *otf, void *gpos)
-{
-	void *scripts = gpos + U16(gpos, 4);
-	int nscripts, nlangs;
-	void *script;
-	void *grec, *lrec;
-	char tag[8];
-	int i, j;
-	nscripts = U16(scripts, 0);
-	for (i = 0; i < nscripts; i++) {
-		grec = scripts + 2 + 6 * i;
-		memcpy(tag, grec, 4);
-		tag[4] = '\0';
-		if (!trfn_script(tag, nscripts))
-			continue;
-		script = scripts + U16(grec, 4);
-		nlangs = U16(script, 2);
-		if (U16(script, 0) && trfn_lang(NULL, nlangs + (U16(script, 0) != 0)))
-			otf_gposlang(otf, gpos, script + U16(script, 0));
-		for (j = 0; j < nlangs; j++) {
-			lrec = script + 4 + 6 * j;
-			memcpy(tag, lrec, 4);
-			tag[4] = '\0';
-			if (trfn_lang(tag, nlangs + (U16(script, 0) != 0)))
-				otf_gposlang(otf, gpos, script + U16(lrec, 4));
-		}
-	}
-}
-
 /* gsub context */
 struct gctx {
 	int bgrp[GCTXLEN];	/* backtrack coverage arrays */
@@ -732,20 +650,125 @@ static void otf_gsubtype6(void *otf, void *sub, char *feat, void *gsub)
 	}
 }
 
-/* parse the given gsub feature table */
-static void otf_gsubfeatrec(void *otf, void *gsub, void *featrec)
+/* an otf gsub/gpos lookup */
+struct otflookup {
+	char feat[8];		/* feature name */
+	int lookup;		/* index into the lookup table */
+};
+
+/* parse the given gsub/gpos feature table */
+static int otf_featrec(void *otf, void *gtab, void *featrec, struct otflookup *lookups)
 {
-	void *feats = gsub + U16(gsub, 6);
-	void *lookups = gsub + U16(gsub, 8);
-	void *feat;
-	int nlookups;
-	char tag[8] = "";
-	int i, j;
-	memcpy(tag, featrec, 4);
-	feat = feats + U16(featrec, 4);
-	nlookups = U16(feat, 2);
+	void *feats = gtab + U16(gtab, 6);
+	void *feat = feats + U16(featrec, 4);
+	int nlookups = U16(feat, 2);
+	int i;
 	for (i = 0; i < nlookups; i++) {
-		void *lookup = lookups + U16(lookups, 2 + 2 * U16(feat, 4 + 2 * i));
+		memcpy(lookups[i].feat, featrec, 4);
+		lookups[i].feat[4] = '\0';
+		lookups[i].lookup = U16(feat, 4 + 2 * i);
+	}
+	return nlookups;
+}
+
+/* parse the given language table and its feature tables */
+static int otf_lang(void *otf, void *gtab, void *lang, struct otflookup *lookups)
+{
+	void *feats = gtab + U16(gtab, 6);
+	int featidx = U16(lang, 2);
+	int nfeat = U16(lang, 4);
+	int n = 0;
+	int i;
+	if (featidx != 0xffff)
+		n += otf_featrec(otf, gtab, feats + 2 + 6 * featidx, lookups + n);
+	for (i = 0; i < nfeat; i++)
+		n += otf_featrec(otf, gtab,
+				feats + 2 + 6 * U16(lang, 6 + 2 * i), lookups + n);
+	return n;
+}
+
+static int lookupcmp(void *v1, void *v2)
+{
+	return ((struct otflookup *) v1)->lookup - ((struct otflookup *) v2)->lookup;
+}
+
+/* extract lookup tables for all features of the given gsub/gpos table */
+static int otf_gtab(void *otf, void *gpos, struct otflookup *lookups)
+{
+	void *scripts = gpos + U16(gpos, 4);
+	int nscripts, nlangs;
+	void *script;
+	void *grec, *lrec;
+	char tag[8];
+	int i, j;
+	int n = 0;
+	nscripts = U16(scripts, 0);
+	for (i = 0; i < nscripts; i++) {
+		grec = scripts + 2 + 6 * i;
+		memcpy(tag, grec, 4);
+		tag[4] = '\0';
+		if (!trfn_script(tag, nscripts))
+			continue;
+		script = scripts + U16(grec, 4);
+		nlangs = U16(script, 2);
+		if (U16(script, 0) && trfn_lang(NULL, nlangs + (U16(script, 0) != 0)))
+			n += otf_lang(otf, gpos, script + U16(script, 0), lookups + n);
+		for (j = 0; j < nlangs; j++) {
+			lrec = script + 4 + 6 * j;
+			memcpy(tag, lrec, 4);
+			tag[4] = '\0';
+			if (trfn_lang(tag, nlangs + (U16(script, 0) != 0)))
+				n += otf_lang(otf, gpos, script + U16(lrec, 4), lookups + n);
+		}
+	}
+	qsort(lookups, n, sizeof(lookups[0]), (void *) lookupcmp);
+	return n;
+}
+
+static void otf_gpos(void *otf, void *gpos)
+{
+	struct otflookup lookups[NLOOKUPS];
+	void *lookuplist = gpos + U16(gpos, 8);
+	int nlookups = otf_gtab(otf, gpos, lookups);
+	int i, j;
+	for (i = 0; i < nlookups; i++) {
+		void *lookup = lookuplist + U16(lookuplist, 2 + 2 * lookups[i].lookup);
+		char *tag = lookups[i].feat;
+		int ltype = U16(lookup, 0);
+		int ntabs = U16(lookup, 4);
+		for (j = 0; j < ntabs; j++) {
+			void *tab = lookup + U16(lookup, 6 + 2 * j);
+			int type = ltype;
+			if (type == 9) {	/* extension positioning */
+				type = U16(tab, 2);
+				tab = tab + U32(tab, 4);
+			}
+			switch (type) {
+			case 1:
+				otf_gpostype1(otf, tab, tag);
+				break;
+			case 2:
+				otf_gpostype2(otf, tab, tag);
+				break;
+			case 3:
+				otf_gpostype3(otf, tab, tag);
+				break;
+			default:
+				otf_unsupported("GPOS", type, 0);
+			}
+		}
+	}
+}
+
+static void otf_gsub(void *otf, void *gsub)
+{
+	struct otflookup lookups[NLOOKUPS];
+	void *lookuplist = gsub + U16(gsub, 8);
+	int nlookups = otf_gtab(otf, gsub, lookups);
+	int i, j;
+	for (i = 0; i < nlookups; i++) {
+		void *lookup = lookuplist + U16(lookuplist, 2 + 2 * lookups[i].lookup);
+		char *tag = lookups[i].feat;
 		int ltype = U16(lookup, 0);
 		int ntabs = U16(lookup, 4);
 		for (j = 0; j < ntabs; j++) {
@@ -771,49 +794,6 @@ static void otf_gsubfeatrec(void *otf, void *gsub, void *featrec)
 			default:
 				otf_unsupported("GSUB", type, 0);
 			}
-		}
-	}
-}
-
-/* parse the given gsub language table and its feature tables */
-static void otf_gsublang(void *otf, void *gsub, void *lang)
-{
-	void *feats = gsub + U16(gsub, 6);
-	int featidx = U16(lang, 2);
-	int nfeat = U16(lang, 4);
-	int i;
-	if (featidx != 0xffff)
-		otf_gsubfeatrec(otf, gsub, feats + 2 + 6 * featidx);
-	for (i = 0; i < nfeat; i++)
-		otf_gsubfeatrec(otf, gsub,
-				feats + 2 + 6 * U16(lang, 6 + 2 * i));
-}
-
-static void otf_gsub(void *otf, void *gsub)
-{
-	void *scripts = gsub + U16(gsub, 4);
-	int nscripts, nlangs;
-	void *script;
-	void *grec, *lrec;
-	char tag[8];
-	int i, j;
-	nscripts = U16(scripts, 0);
-	for (i = 0; i < nscripts; i++) {
-		grec = scripts + 2 + 6 * i;
-		memcpy(tag, grec, 4);
-		tag[4] = '\0';
-		if (!trfn_script(tag, nscripts))
-			continue;
-		script = scripts + U16(scripts + 2 + 6 * i, 4);
-		nlangs = U16(script, 2);
-		if (U16(script, 0) && trfn_lang(NULL, nlangs + (U16(script, 0) != 0)))
-			otf_gsublang(otf, gsub, script + U16(script, 0));
-		for (j = 0; j < nlangs; j++) {
-			lrec = script + 4 + 6 * j;
-			memcpy(tag, lrec, 4);
-			tag[4] = '\0';
-			if (trfn_lang(tag, nlangs + (U16(script, 0) != 0)))
-				otf_gsublang(otf, gsub, script + U16(lrec, 4));
 		}
 	}
 }
