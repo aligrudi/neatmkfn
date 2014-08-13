@@ -1,10 +1,10 @@
 #!/bin/sh
 # Generate a neatroff output device
 
-# ghostscript font directory; also $FP/afm/, $FP/ttf/, $FP/otf/
-FP="/mnt/file/gs/fonts"
+# ghostscript fonts directory; should be in GS_FONTPATH
+FP="/path/to/gs/fonts"
 # output device directory
-TP="/root/queue/devutf"
+TP="/path/to/font/devutf"
 # device resolution
 RES="720"
 # pattern of ligatures to ignore
@@ -24,7 +24,7 @@ echo "unitwidth 10" >>$TP/DESC
 function afmconv
 {
 	echo $1
-	cat $3 | ./mkfn $4 -a -b -r$RES -t $1 -p $2 | \
+	cat $2 | ./mkfn -a -b -r$RES -t "$1" $3 $4 $5 $6 $7 | \
 		sed "/^ligatures /s/ $LIGIGN//g" >$TP/$1
 }
 
@@ -32,7 +32,7 @@ function afmconv
 function ttfconv
 {
 	echo $1
-	cat $3 | ./mkfn -b -o -r$RES -t $1 -p $2 -k$MINKERN | \
+	cat $2 | ./mkfn -b -o -r$RES -t $1 -k$MINKERN $3 $4 $5 $6 $7 | \
 		sed "/^ligatures /s/ $LIGIGN//g" >$TP/$1
 }
 
@@ -42,66 +42,68 @@ function otfconv
 	TTF="/tmp/.neatmkfn.ttf"
 	# convert the OTF file to TTF using fontforge
 	echo -e "Open(\"$3\")\nGenerate(\"$TTF\")" | fontforge >/dev/null 2>&1
-	ttfconv $1 $2 $TTF
+	ttfconv $1 $TTF $3 $4 $5 $6 $7
 	rm $TTF
 }
 
 # The standard fonts
-afmconv R	Times-Roman		$FP/n021003l.afm
-afmconv I	Times-Italic		$FP/n021023l.afm
-afmconv B	Times-Bold		$FP/n021004l.afm
-afmconv BI	Times-BoldItalic	$FP/n021024l.afm
-afmconv S	Symbol			$FP/s050000l.afm -s
-afmconv S1	Times-Roman		$FP/n021003l.afm -s
-afmconv AR	AvantGarde-Book		$FP/a010013l.afm
-afmconv AI	AvantGarde-BookOblique	$FP/a010033l.afm
-afmconv AB	AvantGarde-Demi		$FP/a010015l.afm
-afmconv AX	AvantGarde-DemiOblique	$FP/a010035l.afm
-afmconv H	Helvetica		$FP/n019003l.afm
-afmconv HI	Helvetica-Oblique	$FP/n019023l.afm
-afmconv HB	Helvetica-Bold		$FP/n019004l.afm
-afmconv HX	Helvetica-BoldOblique	$FP/n019024l.afm
-afmconv Hr	Helvetica-Narrow	$FP/n019043l.afm
-afmconv Hi	Helvetica-Narrow-Oblique	$FP/n019063l.afm
-afmconv Hb	Helvetica-Narrow-Bold	$FP/n019044l.afm
-afmconv Hx	Helvetica-Narrow-BoldOblique	$FP/n019064l.afm
-afmconv KR	Bookman-Light		$FP/b018012l.afm
-afmconv KI	Bookman-LightItalic	$FP/b018032l.afm
-afmconv KB	Bookman-Demi		$FP/b018015l.afm
-afmconv KX	Bookman-DemiItalic	$FP/b018035l.afm
-afmconv NR	NewCenturySchlbk-Roman	$FP/c059013l.afm
-afmconv NI	NewCenturySchlbk-Italic	$FP/c059033l.afm
-afmconv NB	NewCenturySchlbk-Bold	$FP/c059016l.afm
-afmconv NX	NewCenturySchlbk-BoldItalic	$FP/c059036l.afm
-afmconv PA	Palatino-Roman		$FP/p052003l.afm
-afmconv PR	Palatino-Roman		$FP/p052003l.afm
-afmconv PI	Palatino-Italic		$FP/p052023l.afm
-afmconv PB	Palatino-Bold		$FP/p052004l.afm
-afmconv PX	Palatino-BoldItalic	$FP/p052024l.afm
-afmconv C	Courier			$FP/n022003l.afm
-afmconv CO	Courier			$FP/n022003l.afm
-afmconv CW	Courier			$FP/n022003l.afm
-afmconv CI	Courier-Oblique		$FP/n022023l.afm
-afmconv CB	Courier-Bold		$FP/n022004l.afm
-afmconv CX	Courier-BoldOblique	$FP/n022024l.afm
-afmconv ZI	ZapfChancery-MediumItalic	$FP/z003034l.afm
-afmconv ZD	ZapfDingbats		$FP/d050000l.afm
+afmconv R	$FP/n021003l.afm	-pTimes-Roman
+afmconv I	$FP/n021023l.afm	-pTimes-Italic
+afmconv B	$FP/n021004l.afm	-pTimes-Bold
+afmconv BI	$FP/n021024l.afm	-pTimes-BoldItalic
+afmconv S	$FP/s050000l.afm	-pSymbol -s
+afmconv S1	$FP/n021003l.afm	-pTimes-Roman -s
+afmconv AR	$FP/a010013l.afm	-pAvantGarde-Book
+afmconv AI	$FP/a010033l.afm	-pAvantGarde-BookOblique
+afmconv AB	$FP/a010015l.afm	-pAvantGarde-Demi
+afmconv AX	$FP/a010035l.afm	-pAvantGarde-DemiOblique
+afmconv H	$FP/n019003l.afm	-pHelvetica
+afmconv HI	$FP/n019023l.afm	-pHelvetica-Oblique
+afmconv HB	$FP/n019004l.afm	-pHelvetica-Bold
+afmconv HX	$FP/n019024l.afm	-pHelvetica-BoldOblique
+afmconv Hr	$FP/n019043l.afm	-pHelvetica-Narrow
+afmconv Hi	$FP/n019063l.afm	-pHelvetica-Narrow-Oblique
+afmconv Hb	$FP/n019044l.afm	-pHelvetica-Narrow-Bold
+afmconv Hx	$FP/n019064l.afm	-pHelvetica-Narrow-BoldOblique
+afmconv KR	$FP/b018012l.afm	-pBookman-Light
+afmconv KI	$FP/b018032l.afm	-pBookman-LightItalic
+afmconv KB	$FP/b018015l.afm	-pBookman-Demi
+afmconv KX	$FP/b018035l.afm	-pBookman-DemiItalic
+afmconv NR	$FP/c059013l.afm	-pNewCenturySchlbk-Roman
+afmconv NI	$FP/c059033l.afm	-pNewCenturySchlbk-Italic
+afmconv NB	$FP/c059016l.afm	-pNewCenturySchlbk-Bold
+afmconv NX	$FP/c059036l.afm	-pNewCenturySchlbk-BoldItalic
+afmconv PA	$FP/p052003l.afm	-pPalatino-Roman
+afmconv PR	$FP/p052003l.afm	-pPalatino-Roman
+afmconv PI	$FP/p052023l.afm	-pPalatino-Italic
+afmconv PB	$FP/p052004l.afm	-pPalatino-Bold
+afmconv PX	$FP/p052024l.afm	-pPalatino-BoldItalic
+afmconv C	$FP/n022003l.afm	-pCourier
+afmconv CO	$FP/n022003l.afm	-pCourier
+afmconv CW	$FP/n022003l.afm	-pCourier
+afmconv CI	$FP/n022023l.afm	-pCourier-Oblique
+afmconv CB	$FP/n022004l.afm	-pCourier-Bold
+afmconv CX	$FP/n022024l.afm	-pCourier-BoldOblique
+afmconv ZI	$FP/z003034l.afm	-pZapfChancery-MediumItalic
+afmconv ZD	$FP/d050000l.afm	-pZapfDingbats
 
-# For afm, ttf and otf files, we assume the postscript name of
-# the font can be obtained by dropping its extension.  Otherwise,
-# remove the -p argument of mkfn in *conv function.
+# The first argument of afmconv, ttfconv, and otfconv is the troff
+# name of the font and their second argument is its path. Any other
+# argument is passed to mkfn directly.  The postscript names of the
+# fonts are inferred from the fonts themselves  To change that, you
+# can specify their names via the -p argument of *conv functions.
 
-find $FP/afm/ -name '*.afm' | while read FN
+find $FP/ -name '*.afm' | while read FN
 do
-	afmconv `basename $FN .afm` `basename $FN .afm` $FN
+	afmconv `basename $FN .afm` $FN
 done
 
-find $FP/ttf/ -name '*.ttf' | while read FN
+find $FP/ -name '*.ttf' | while read FN
 do
-	ttfconv `basename $FN .ttf` `basename $FN .ttf` $FN
+	ttfconv `basename $FN .ttf` $FN
 done
 
-find $FP/otf/ -name '*.otf' | while read FN
+find $FP/ -name '*.otf' | while read FN
 do
-	otfconv `basename $FN .otf` `basename $FN .otf` $FN
+	otfconv `basename $FN .otf` $FN
 done
