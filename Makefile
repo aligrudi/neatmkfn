@@ -5,7 +5,7 @@ LDFLAGS =
 all: mkfn
 %.o: %.c
 	$(CC) -c $(CFLAGS) $<
-mkfn: mkfn.o trfn.o sbuf.o tab.o otf.o
+mkfn: mkfn.o trfn.o sbuf.o tab.o afm.o otf.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 clean:
 	rm -f *.o mkfn
