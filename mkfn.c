@@ -10,13 +10,54 @@
 #include <stdlib.h>
 #include "trfn.h"
 
+#define LEN(a)		((sizeof(a) / sizeof((a)[0])))
+
 static char *trfn_scripts;	/* filtered scripts */
 static char *trfn_langs;	/* filtered languages */
-static char *trfn_featranks;	/* manual feature ordering */
+static char *trfn_order;	/* feature ordering */
+
+/* OpenType specifies an specific feature order for different scripts */
+static char *scriptorder[][2] = {
+	{"latn", "ccmp,liga,clig,dist,kern,mark,mkmk"},
+	{"cyrl", "ccmp,liga,clig,dist,kern,mark,mkmk"},
+	{"grek", "ccmp,liga,clig,dist,kern,mark,mkmk"},
+	{"armn", "ccmp,liga,clig,dist,kern,mark,mkmk"},
+	{"geor", "ccmp,liga,clig,dist,kern,mark,mkmk"},
+	{"runr", "ccmp,liga,clig,dist,kern,mark,mkmk"},
+	{"ogam", "ccmp,liga,clig,dist,kern,mark,mkmk"},
+	{"arab", "ccmp,isol,fina,medi,init,rlig,calt,liga,dlig,cswh,mset,curs,kern,mark,mkmk"},
+	{"bugi", "locl,ccmp,rlig,liga,clig,calt,kern,dist,mark,mkmk"},
+	{"hang", "ccmp,ljmo,vjmo,tjmo"},
+	{"hebr", "ccmp,dlig,kern,mark"},
+	{"bng2", "locl,nukt,akhn,rphf,blwf,half,pstf,vatu,cjct,init,pres,abvs,blws,psts,haln,calt,kern,dist,abvm,blwm"},
+	{"dev2", "locl,nukt,akhn,rphf,blwf,half,pstf,vatu,cjct,init,pres,abvs,blws,psts,haln,calt,kern,dist,abvm,blwm"},
+	{"gjr2", "locl,nukt,akhn,rphf,blwf,half,pstf,vatu,cjct,init,pres,abvs,blws,psts,haln,calt,kern,dist,abvm,blwm"},
+	{"gur2", "locl,nukt,akhn,rphf,blwf,half,pstf,vatu,cjct,init,pres,abvs,blws,psts,haln,calt,kern,dist,abvm,blwm"},
+	{"knd2", "locl,nukt,akhn,rphf,blwf,half,pstf,vatu,cjct,init,pres,abvs,blws,psts,haln,calt,kern,dist,abvm,blwm"},
+	{"mlym", "locl,nukt,akhn,rphf,blwf,half,pstf,vatu,cjct,init,pres,abvs,blws,psts,haln,calt,kern,dist,abvm,blwm"},
+	{"ory2", "locl,nukt,akhn,rphf,blwf,half,pstf,vatu,cjct,init,pres,abvs,blws,psts,haln,calt,kern,dist,abvm,blwm"},
+	{"tml2", "locl,nukt,akhn,rphf,blwf,half,pstf,vatu,cjct,init,pres,abvs,blws,psts,haln,calt,kern,dist,abvm,blwm"},
+	{"tml2", "locl,nukt,akhn,rphf,blwf,half,pstf,vatu,cjct,init,pres,abvs,blws,psts,haln,calt,kern,dist,abvm,blwm"},
+	{"telu", "locl,nukt,akhn,rphf,blwf,half,pstf,vatu,cjct,init,pres,abvs,blws,psts,haln,calt,kern,dist,abvm,blwm"},
+	{"java", "locl,pref,abvf,blwf,pstf,pres,abvs,blws,psts,ccmp,rlig,liga,clig,calt,kern,dist,mark,mkmk"},
+	{"khmr", "pref,blwf,abvf,pstf,pres,blws,abvs,psts,clig,dist,blwm,abvm,mkmk"},
+	{"lao ", "ccmp,kern,mark,mkmk"},
+	{"mym2", "locl,rphf,pref,blwf,pstf,pres,abvs,blws,psts,kern,dist,mark,mkmk"},
+	{"sinh", "locl,ccmp,akhn,rphf,vatu,pstf,pres,abvs,blws,psts,kern,dist,abvm,blwm"},
+	{"syrc", "stch,ccmp,isol,fina,fin2,fin3,medi,med2,init,rlig,calt,liga,dlig,kern,mark,mkmk"},
+	{"thaa", "kern,mark"},
+	{"thai", "ccmp,kern,mark,mkmk"},
+	{"tibt", "ccmp,abvs,blws,calt,liga,kern,abvm,blwm,mkmk"},
+};
 
 /* return 1 if script script is to be included */
 int trfn_script(char *script, int nscripts)
 {
+	int i;
+	trfn_order = NULL;
+	for (i = 0; i < LEN(scriptorder); i++)
+		if (script && !strcmp(script, scriptorder[i][0]))
+			trfn_order = scriptorder[i][1];
 	if (!trfn_scripts)
 		return nscripts == 1 || !script ||
 			!strcmp("DFLT", script) || !strcmp("latn", script);
@@ -43,8 +84,8 @@ int trfn_lang(char *lang, int nlangs)
 
 int trfn_featrank(char *feat)
 {
-	char *s = trfn_featranks ? strstr(trfn_featranks, feat) : NULL;
-	return s ? s - trfn_featranks : 1000;
+	char *s = trfn_order ? strstr(trfn_order, feat) : NULL;
+	return s ? s - trfn_order : 1000;
 }
 
 int otf_read(void);
@@ -64,7 +105,6 @@ static char *usage =
 	"  -b      \tinclude glyph bounding boxes\n"
 	"  -S scrs \tcomma-separated list of scripts to include (help to list)\n"
 	"  -L langs\tcomma-separated list of languages to include (help to list)\n"
-	"  -O order\tfeatures to apply first (required only for some languages)\n"
 	"  -w      \twarn about unsupported font features\n";
 
 int main(int argc, char *argv[])
@@ -92,9 +132,6 @@ int main(int argc, char *argv[])
 			break;
 		case 'o':
 			afm = 0;
-			break;
-		case 'O':
-			trfn_featranks = argv[i][2] ? argv[i] + 2 : argv[++i];
 			break;
 		case 'p':
 			trfn_psfont(argv[i][2] ? argv[i] + 2 : argv[++i]);
