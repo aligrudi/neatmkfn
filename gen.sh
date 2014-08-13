@@ -20,7 +20,7 @@ echo "hor 1" >>$TP/DESC
 echo "ver 1" >>$TP/DESC
 echo "unitwidth 10" >>$TP/DESC
 
-# afmconv troff_name postscript_name font_filename
+# afmconv troff_name font_path extra_mktrfn_options
 function afmconv
 {
 	echo $1
@@ -28,7 +28,7 @@ function afmconv
 		sed "/^ligatures /s/ $LIGIGN//g" >$TP/$1
 }
 
-# ttfconv troff_name postscript_name font_filename
+# ttfconv troff_name font_path extra_mktrfn_options
 function ttfconv
 {
 	echo $1
@@ -36,7 +36,7 @@ function ttfconv
 		sed "/^ligatures /s/ $LIGIGN//g" >$TP/$1
 }
 
-# otfconv troff_name postscript_name font_filename
+# otfconv troff_name font_path extra_mktrfn_options
 function otfconv
 {
 	TTF="/tmp/.neatmkfn.ttf"
