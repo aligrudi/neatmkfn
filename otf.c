@@ -782,7 +782,7 @@ static void otf_gsub(void *otf, void *gsub)
 	}
 }
 
-int xread(int fd, char *buf, int len)
+static int xread(int fd, char *buf, int len)
 {
 	int nr = 0;
 	while (nr < len) {
