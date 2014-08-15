@@ -1,5 +1,5 @@
 /*
- * mktrfn - produce troff font descriptions
+ * mktrfn - generate troff font descriptions
  *
  * Copyright (C) 2012-2014 Ali Gholami Rudi <ali at rudi dot ir>
  *
@@ -16,7 +16,7 @@ static char *trfn_scripts;	/* filtered scripts */
 static char *trfn_langs;	/* filtered languages */
 static char *trfn_order;	/* feature ordering */
 
-/* OpenType specifies an specific feature order for different scripts */
+/* OpenType specifies a specific feature order for different scripts */
 static char *scriptorder[][2] = {
 	{"latn", "ccmp,liga,clig,dist,kern,mark,mkmk"},
 	{"cyrl", "ccmp,liga,clig,dist,kern,mark,mkmk"},
