@@ -19,11 +19,6 @@
 #define S16(buf, off)		((s16) htons(*(u16 *) ((buf) + (off))))
 #define S32(buf, off)		((s32) htonl(*(u32 *) ((buf) + (off))))
 
-#define OTFLEN		12	/* otf header length */
-#define OTFRECLEN	16	/* otf header record length */
-#define CMAPLEN		4	/* cmap header length */
-#define CMAPRECLEN	8	/* cmap record length */
-#define CMAP4LEN	8	/* format 4 cmap subtable header length */
 #define GCTXLEN		16	/* number of context backtrack coverage arrays */
 
 typedef unsigned int u32;
@@ -69,12 +64,10 @@ static void otf_unsupported(char *sub, int type, int fmt)
 /* find the otf table with the given name */
 static void *otf_table(void *otf, char *name)
 {
-	void *recs = otf + OTFLEN;	/* otf table records */
-	void *rec;			/* beginning of a table record */
 	int nrecs = U16(otf, 4);
 	int i;
 	for (i = 0; i < nrecs; i++) {
-		rec = recs + i * OTFRECLEN;
+		void *rec = otf + 12 + i * 16;	/* an otf table record */
 		if (!strncmp(rec, name, 4))
 			return otf + U32(rec, 8);
 	}
@@ -135,19 +128,14 @@ static void otf_cmap4(void *otf, void *cmap4)
 /* parse otf cmap header */
 static void otf_cmap(void *otf, void *cmap)
 {
-	void *recs = cmap + CMAPLEN;	/* cmap records */
-	void *rec;			/* a cmap record */
-	void *tab;			/* a cmap subtable */
-	int plat, enc;
-	int fmt;
 	int nrecs = U16(cmap, 2);
 	int i;
 	for (i = 0; i < nrecs; i++) {
-		rec = recs + i * CMAPRECLEN;
-		plat = U16(rec, 0);
-		enc = U16(rec, 2);
-		tab = cmap + U32(rec, 4);
-		fmt = U16(tab, 0);
+		void *rec = cmap + 4 + i * 8;	/* a cmap record */
+		int plat = U16(rec, 0);
+		int enc = U16(rec, 2);
+		void *tab = cmap + U32(rec, 4);	/* a cmap subtable */
+		int fmt = U16(tab, 0);
 		if (plat == 3 && enc == 1 && fmt == 4)
 			otf_cmap4(otf, tab);
 	}
@@ -158,8 +146,8 @@ static void otf_post(void *otf, void *post)
 	void *post2;			/* version 2.0 header */
 	void *index;			/* glyph name indices */
 	void *names;			/* glyph names */
-	int i, idx;
 	int cname = 0;
+	int i;
 	if (U32(post, 0) != 0x00020000)
 		return;
 	post2 = post + 32;
@@ -167,7 +155,7 @@ static void otf_post(void *otf, void *post)
 	index = post2 + 2;
 	names = index + 2 * glyph_n;
 	for (i = 0; i < glyph_n; i++) {
-		idx = U16(index, 2 * i);
+		int idx = U16(index, 2 * i);
 		if (idx <= 257) {
 			strcpy(glyph_name[i], macset[idx]);
 		} else {
@@ -217,24 +205,19 @@ static void otf_hmtx(void *otf, void *hmtx)
 
 static void otf_kern(void *otf, void *kern)
 {
-	int n;		/* number of kern subtables */
-	void *tab;	/* a kern subtable */
 	int off = 4;
-	int npairs;
-	int cov;
 	int i, j;
-	int c1, c2, val;
-	n = U16(kern, 2);
+	int n = U16(kern, 2);		/* number of kern subtables */
 	for (i = 0; i < n; i++) {
-		tab = kern + off;
+		void *tab = kern + off;	/* a kern subtable */
+		int cov = U16(tab, 4);
 		off += U16(tab, 2);
-		cov = U16(tab, 4);
 		if ((cov >> 8) == 0 && (cov & 1)) {	/* format 0 */
-			npairs = U16(tab, 6);
+			int npairs = U16(tab, 6);
 			for (j = 0; j < npairs; j++) {
-				c1 = U16(tab, 14 + 6 * j);
-				c2 = U16(tab, 14 + 6 * j + 2);
-				val = S16(tab, 14 + 6 * j + 4);
+				int c1 = U16(tab, 14 + 6 * j);
+				int c2 = U16(tab, 14 + 6 * j + 2);
+				int val = S16(tab, 14 + 6 * j + 4);
 				trfn_kern(glyph_name[c1], glyph_name[c2],
 					owid(val));
 			}
@@ -267,11 +250,10 @@ static int coverage(void *cov, int *out)
 static int classdef(void *tab, int *gl, int *cls)
 {
 	int fmt = U16(tab, 0);
-	int beg, end;
-	int n, ngl = 0;
+	int ngl = 0;
 	int i, j;
 	if (fmt == 1) {
-		beg = U16(tab, 2);
+		int beg = U16(tab, 2);
 		ngl = U16(tab, 4);
 		for (i = 0; i < ngl; i++) {
 			gl[i] = beg + i;
@@ -279,10 +261,10 @@ static int classdef(void *tab, int *gl, int *cls)
 		}
 	}
 	if (fmt == 2) {
-		n = U16(tab, 2);
+		int n = U16(tab, 2);
 		for (i = 0; i < n; i++) {
-			beg = U16(tab, 4 + 6 * i);
-			end = U16(tab, 4 + 6 * i + 2);
+			int beg = U16(tab, 4 + 6 * i);
+			int end = U16(tab, 4 + 6 * i + 2);
 			for (j = beg; j <= end; j++) {
 				gl[ngl] = j;
 				cls[ngl] = U16(tab, 4 + 6 * i + 4);
@@ -517,7 +499,6 @@ static void otf_gsubtype1(void *otf, void *sub, char *feat, struct gctx *ctx)
 	int cov[NGLYPHS];
 	int fmt = U16(sub, 0);
 	int ncov;
-	int n;
 	int i;
 	ncov = coverage(sub + U16(sub, 2), cov);
 	if (fmt == 1) {
@@ -531,7 +512,7 @@ static void otf_gsubtype1(void *otf, void *sub, char *feat, struct gctx *ctx)
 		}
 	}
 	if (fmt == 2) {
-		n = U16(sub, 4);
+		int n = U16(sub, 4);
 		for (i = 0; i < n; i++) {
 			printf("gsub %s %d", feat, 2 + gctx_len(ctx, 1));
 			gctx_backtrack(ctx);
@@ -702,13 +683,12 @@ static int otf_gtab(void *otf, void *gpos, struct otflookup *lookups)
 	void *scripts = gpos + U16(gpos, 4);
 	int nscripts, nlangs;
 	void *script;
-	void *grec, *lrec;
 	char tag[8];
 	int i, j;
 	int n = 0;
 	nscripts = U16(scripts, 0);
 	for (i = 0; i < nscripts; i++) {
-		grec = scripts + 2 + 6 * i;
+		void *grec = scripts + 2 + 6 * i;
 		memcpy(tag, grec, 4);
 		tag[4] = '\0';
 		if (!trfn_script(tag, nscripts))
@@ -718,7 +698,7 @@ static int otf_gtab(void *otf, void *gpos, struct otflookup *lookups)
 		if (U16(script, 0) && trfn_lang(NULL, nlangs + (U16(script, 0) != 0)))
 			n += otf_lang(otf, gpos, script + U16(script, 0), lookups + n);
 		for (j = 0; j < nlangs; j++) {
-			lrec = script + 4 + 6 * j;
+			void *lrec = script + 4 + 6 * j;
 			memcpy(tag, lrec, 4);
 			tag[4] = '\0';
 			if (trfn_lang(tag, nlangs + (U16(script, 0) != 0)))
