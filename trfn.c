@@ -5,6 +5,7 @@
 #include "sbuf.h"
 #include "tab.h"
 #include "trfn.h"
+#include "trfn_agl.h"
 #include "trfn_ch.h"
 
 #define WX(w)		(((w) < 0 ? (w) - trfn_div / 2 : (w) + trfn_div / 2) / trfn_div)
@@ -28,14 +29,9 @@ static char trfn_psname[256];	/* font ps name */
 static int trfn_asc;		/* minimum height of glyphs with ascender */
 static int trfn_desc;		/* minimum depth of glyphs with descender */
 
-/* adobe glyphlist mapping */
-static char agl_key[AGLLEN][GNLEN];
-static char agl_val[AGLLEN][GNLEN];
-static int agl_n;
-
 /* lookup tables */
-static struct tab *tab_agl;
-static struct tab *tab_alts;
+static struct tab *tab_agl;	/* adobe glyph list table */
+static struct tab *tab_alts;	/* character aliases table */
 
 static int utf8len(int c)
 {
@@ -105,42 +101,19 @@ static int hexval(char *s, int len)
 	return len == 1 ? n << 4 : n;
 }
 
-static int agl_read(char *path)
+static int agl_map(char *d, char *s)
 {
-	FILE *fin = fopen(path, "r");
-	char ln[GNLEN];
-	char val[GNLEN];
-	char *s, *d;
-	int i;
-	if (!fin)
+	char *u = tab_get(tab_agl, s);	/* unicode code point like "FB8E" */
+	if (!u)
 		return 1;
-	while (fgets(ln, sizeof(ln), fin)) {
-		s = strchr(ln, ';');
-		if (ln[0] == '#' || !s)
-			continue;
-		*s++ = '\0';
-		d = val;
-		while (s && *s) {
-			while (*s == ' ')
-				s++;
-			utf8put(&d, hexval(s, 6));
-			s = strchr(s, ' ');
-		}
-		*d = '\0';
-		strcpy(agl_key[agl_n], ln);
-		strcpy(agl_val[agl_n], val);
-		agl_n++;
+	while (u && *u) {
+		while (*u == ' ')
+			u++;
+		utf8put(&d, hexval(u, 6));
+		u = strchr(u, ' ');
 	}
-	fclose(fin);
-	tab_agl = tab_alloc(agl_n);
-	for (i = 0; i < agl_n; i++)
-		tab_put(tab_agl, agl_key[i], agl_val[i]);
+	*d = '\0';
 	return 0;
-}
-
-static char *agl_map(char *s)
-{
-	return tab_get(tab_agl, s);
 }
 
 static int achar_map(char *name)
@@ -219,8 +192,7 @@ static int trfn_name(char *dst, char *src, int codepoint)
 		while (*src && *src != '_' && *src != '.')
 			*s++ = *src++;
 		*s = '\0';
-		if (agl_map(ch)) {
-			strcpy(d, agl_map(ch));
+		if (!agl_map(d, ch)) {
 			for (i = 0; i < LEN(agl_exceptions); i++) {
 				if (!strcmp(agl_exceptions[i][0], d)) {
 					strcpy(d, agl_exceptions[i][1]);
@@ -355,10 +327,11 @@ void trfn_init(int res, int spc, int kmin, int bbox)
 	trfn_special = spc;
 	trfn_kmin = kmin;
 	trfn_bbox = bbox;
-	if (agl_read("glyphlist.txt"))
-		fprintf(stderr, "mktrfn: could not open glyphlist.txt\n");
 	sbuf_init(&sbuf_char);
 	sbuf_init(&sbuf_kern);
+	tab_agl = tab_alloc(LEN(agl));
+	for (i = 0; i < LEN(agl); i++)
+		tab_put(tab_agl, agl[i][0], agl[i][1]);
 	tab_alts = tab_alloc(LEN(alts));
 	for (i = 0; i < LEN(alts); i++)
 		tab_put(tab_alts, alts[i][0], alts[i] + 1);
