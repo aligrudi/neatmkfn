@@ -14,8 +14,9 @@ static char *ligs_exceptions[] = {
 
 /* AGL exceptions */
 static char *agl_exceptions[][2] = {
-	{"∆", "Δ"},	/* Delta -> Delatagreek */
+	{"Δ", "∆"},	/* Delta -> Delatagreek */
 	{"Ω", "Ω"},	/* Omega -> Omegagreek */
+	{"µ", "μ"},	/* mu -> mugreek */
 	{"‘", "`"},	/* quoteleft */
 	{"`", "ga"},	/* grave */
 	{"’", "'"},	/* quoteright */
