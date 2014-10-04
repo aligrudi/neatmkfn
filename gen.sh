@@ -12,6 +12,9 @@ LIGIGN="\(ct\|st\|sp\|Rp\)"
 # minimum amount of kerning to include
 MINKERN="5"
 
+test -n "$1" && FP="$1"
+test -n "$2" && TP="$2"
+
 # creating DESC
 mkdir -p $TP
 echo "fonts 10 R I B BI CW H HI HB S1 S" >$TP/DESC
