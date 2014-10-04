@@ -44,7 +44,7 @@ function otfconv
 {
 	TTF="/tmp/.neatmkfn.ttf"
 	# convert the OTF file to TTF using fontforge
-	echo -e "Open(\"$3\")\nGenerate(\"$TTF\")" | fontforge >/dev/null 2>&1
+	echo -e "Open(\"$2\")\nGenerate(\"$TTF\")" | fontforge >/dev/null 2>&1
 	ttfconv $1 $TTF $3 $4 $5 $6 $7
 	rm $TTF
 }
