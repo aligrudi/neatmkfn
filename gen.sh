@@ -24,7 +24,7 @@ echo "ver 1" >>$TP/DESC
 echo "unitwidth 10" >>$TP/DESC
 
 # afmconv troff_name font_path extra_mktrfn_options
-function afmconv
+afmconv()
 {
 	echo $1
 	cat $2 | ./mkfn -a -b -r$RES -t "$1" $3 $4 $5 $6 $7 | \
@@ -32,7 +32,7 @@ function afmconv
 }
 
 # ttfconv troff_name font_path extra_mktrfn_options
-function ttfconv
+ttfconv()
 {
 	echo $1
 	cat $2 | ./mkfn -b -o -r$RES -t $1 -k$MINKERN $3 $4 $5 $6 $7 | \
@@ -40,7 +40,7 @@ function ttfconv
 }
 
 # otfconv troff_name font_path extra_mktrfn_options
-function otfconv
+otfconv()
 {
 	TTF="/tmp/.neatmkfn.ttf"
 	# convert the OTF file to TTF using fontforge
