@@ -10,7 +10,7 @@
 
 #define WX(w)		(((w) < 0 ? (w) - trfn_div / 2 : (w) + trfn_div / 2) / trfn_div)
 #define LEN(a)		((sizeof(a) / sizeof((a)[0])))
-#define HEXDIGS		"0123456789abcdef"
+#define HEXDIGS		"0123456789ABCDEF"
 #define NCHAR		8	/* number of characters per glyph */
 #define GNLEN		64	/* glyph name length */
 #define AGLLEN		8192	/* adobe glyphlist length */
@@ -98,7 +98,7 @@ static int hexval(char *s, int len)
 		else
 			break;
 	}
-	return len == 1 ? n << 4 : n;
+	return i < 4 ? -1 : n;
 }
 
 static int agl_map(char *d, char *s)
@@ -200,10 +200,11 @@ static int trfn_name(char *dst, char *src, int codepoint)
 				}
 			}
 			d = strchr(d, '\0');
-		} else if (ch[0] == 'u' && ch[1] == 'n' && ch[2] == 'i') {
+		} else if (ch[0] == 'u' && ch[1] == 'n' &&
+				ch[2] == 'i' && hexval(ch + 3, 4) > 0) {
 			for (i = 0; strlen(ch + 3 + 4 * i) >= 4; i++)
 				utf8put(&d, hexval(ch + 3 + 4 * i, 4));
-		} else if (ch[0] == 'u' && ch[1] && strchr(HEXDIGS, tolower(ch[1]))) {
+		} else if (ch[0] == 'u' && hexval(ch + 1, 4) > 0) {
 			utf8put(&d, hexval(ch + 1, 6));
 		} else if (achar_map(ch)) {
 			utf8put(&d, achar_map(ch));
