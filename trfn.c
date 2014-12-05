@@ -93,8 +93,8 @@ static int hexval(char *s, int len)
 	int n = 0;
 	int i;
 	for (i = 0; i < len; i++) {
-		if (s[i] && strchr(digs, tolower(s[i])))
-			n = n * 16 + (strchr(digs, tolower(s[i])) - digs);
+		if (s[i] && strchr(digs, s[i]))
+			n = n * 16 + (strchr(digs, s[i]) - digs);
 		else
 			break;
 	}
