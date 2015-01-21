@@ -9,8 +9,6 @@ TP="/path/to/font/devutf"
 RES="720"
 # pattern of ligatures to ignore
 LIGIGN="\(ct\|st\|sp\|Rp\)"
-# minimum amount of kerning to include
-MINKERN="5"
 
 test -n "$1" && FP="$1"
 test -n "$2" && TP="$2"
@@ -35,7 +33,7 @@ afmconv()
 ttfconv()
 {
 	echo $1
-	cat $2 | ./mkfn -b -o -r$RES -t $1 -k$MINKERN $3 $4 $5 $6 $7 | \
+	cat $2 | ./mkfn -b -o -r$RES -t $1 $3 $4 $5 $6 $7 | \
 		sed "/^ligatures /s/ $LIGIGN//g" >$TP/$1
 }
 
