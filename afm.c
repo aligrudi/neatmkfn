@@ -90,5 +90,3 @@ int afm_read(void)
 	}
 	return 0;
 }
-
-
