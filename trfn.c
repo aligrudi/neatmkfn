@@ -220,8 +220,8 @@ static int trfn_name(char *dst, char *src, int codepoint)
 static void trfn_lig(char *c)
 {
 	int i;
-	for (i = 0; i < LEN(ligs_exceptions); i++)
-		if (!strcmp(ligs_exceptions[i], c))
+	for (i = 0; i < LEN(agl_exceptions); i++)
+		if (!strcmp(agl_exceptions[i][1], c))
 			return;
 	if (c[0] && c[1] && strlen(c) > utf8len((unsigned char) c[0])) {
 		sprintf(strchr(trfn_ligs, '\0'), "%s ", c);

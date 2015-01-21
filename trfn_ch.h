@@ -7,27 +7,18 @@ static char *ligs_utf8[][2] = {
 	{"ﬄ", "ffl"},
 	{"ﬆ", "st"},
 };
-/* these are not ligatures */
-static char *ligs_exceptions[] = {
-	"ga", "aq", "ti", "ha",
-};
 
 /* AGL exceptions */
 static char *agl_exceptions[][2] = {
-	{"Δ", "∆"},	/* Delta -> Delatagreek */
-	{"Ω", "Ω"},	/* Omega -> Omegagreek */
-	{"µ", "μ"},	/* mu -> mugreek */
-	{"‘", "`"},	/* quoteleft */
-	{"`", "ga"},	/* grave */
-	{"’", "'"},	/* quoteright */
-	{"'", "aq"},	/* quotesingle */
+	{"`", "ga"},	/* grave; using quoteleft for ` */
+	{"'", "aq"},	/* quotesingle; using quoteright for ' */
 	{"~", "ti"},	/* asciitilde; using tilde for ~ */
 	{"^", "ha"},	/* asciicircum; using circumflex for ^ */
 };
 
 /* troff aliases */
 static char *alts[][8] = {
-	{"'", "cq"},
+	{"’", "'", "cq"},
 	{"+", "pl"},
 	{"-", "hy"},
 	{"/", "sl"},
@@ -35,8 +26,7 @@ static char *alts[][8] = {
 	{"\"", "dq"},
 	{"\\", "bs", "rs"},
 	{"_", "ru", "ul"},
-	{"`", "oq"},
-	{"aq"},
+	{"‘", "`", "oq"},
 	{"|", "or"},
 	{"¡", "!!", "r!"},
 	{"¢", "c|", "ct"},
@@ -54,7 +44,6 @@ static char *alts[][8] = {
 	{"±", "+-"},
 	{"²", "2^"},
 	{"³", "3^"},
-	{"µ", "/u"},
 	{"¶", "P!", "pg"},
 	{"·", ".^"},
 	{"¹", "1^"},
@@ -185,7 +174,7 @@ static char *alts[][8] = {
 	{"Φ", "*F"},
 	{"Χ", "*X"},
 	{"Ψ", "*Q"},
-	{"Ω", "*W"},
+	{"Ω", "*W", "Ω"}, {"Ω", "Ω", "*W"},
 	{"α", "*a"},
 	{"β", "*b"},
 	{"γ", "*g"},
@@ -197,7 +186,7 @@ static char *alts[][8] = {
 	{"ι", "*i"},
 	{"κ", "*k"},
 	{"λ", "*l"},
-	{"μ", "*m"},
+	{"μ", "*m", "µ", "/u"}, {"µ", "/u", "*m", "μ"},
 	{"ν", "*n"},
 	{"ξ", "*c"},
 	{"ο", "*o"},
@@ -239,7 +228,7 @@ static char *alts[][8] = {
 	{"∂", "pd"},
 	{"∃", "te"},
 	{"∅", "es"},
-	{"∆", "*D"},
+	{"∆", "*D", "Δ"}, {"Δ", "∆", "*D"},
 	{"∇", "gr"},
 	{"∈", "mo"},
 	{"∉", "!m"},
@@ -305,7 +294,7 @@ static char *alts[][8] = {
 	{"", "lt"},
 	{"", "lk"},
 	{"", "lb"},
-	{"", "bv", "|",},
+	{"", "bv", "|"},
 	{"⎧", "lt"},
 	{"⎨", "lk"},
 	{"⎩", "lb"},
