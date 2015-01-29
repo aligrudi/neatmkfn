@@ -33,7 +33,7 @@ afmconv()
 ttfconv()
 {
 	echo $1
-	cat $2 | ./mkfn -b -o -r$RES -t $1 $3 $4 $5 $6 $7 | \
+	cat $2 | ./mkfn -b -l -o -r$RES -t $1 $3 $4 $5 $6 $7 | \
 		sed "/^ligatures /s/ $LIGIGN//g" >$TP/$1
 }
 

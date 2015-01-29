@@ -22,6 +22,7 @@ static int trfn_swid;		/* space width */
 static int trfn_special;	/* special flag */
 static int trfn_kmin;		/* minimum kerning value */
 static int trfn_bbox;		/* include bounding box */
+static int trfn_noligs;		/* suppress ligatures */
 static char trfn_ligs[8192];	/* font ligatures */
 static char trfn_trname[256];	/* font troff name */
 static char trfn_psname[256];	/* font ps name */
@@ -314,20 +315,22 @@ void trfn_print(void)
 	if (trfn_psname[0])
 		printf("fontname %s\n", trfn_psname);
 	printf("spacewidth %d\n", trfn_swid);
-	printf("ligatures %s0\n", trfn_ligs);
+	if (!trfn_noligs)
+		printf("ligatures %s0\n", trfn_ligs);
 	if (trfn_special)
 		printf("special\n");
 	printf("%s", sbuf_buf(&sbuf_char));
 	printf("%s", sbuf_buf(&sbuf_kern));
 }
 
-void trfn_init(int res, int spc, int kmin, int bbox)
+void trfn_init(int res, int spc, int kmin, int bbox, int ligs)
 {
 	int i;
 	trfn_div = 7200 / res;
 	trfn_special = spc;
 	trfn_kmin = kmin;
 	trfn_bbox = bbox;
+	trfn_noligs = !ligs;
 	sbuf_init(&sbuf_char);
 	sbuf_init(&sbuf_kern);
 	tab_agl = tab_alloc(LEN(agl));
