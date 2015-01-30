@@ -194,12 +194,6 @@ static int trfn_name(char *dst, char *src, int codepoint)
 			*s++ = *src++;
 		*s = '\0';
 		if (!agl_map(d, ch)) {
-			for (i = 0; i < LEN(agl_exceptions); i++) {
-				if (!strcmp(agl_exceptions[i][0], d)) {
-					strcpy(d, agl_exceptions[i][1]);
-					break;
-				}
-			}
 			d = strchr(d, '\0');
 		} else if (ch[0] == 'u' && ch[1] == 'n' &&
 				ch[2] == 'i' && hexval(ch + 3, 4) > 0) {
@@ -211,6 +205,12 @@ static int trfn_name(char *dst, char *src, int codepoint)
 			utf8put(&d, achar_map(ch));
 		} else {
 			return 1;
+		}
+	}
+	for (i = 0; i < LEN(agl_exceptions); i++) {
+		if (!strcmp(agl_exceptions[i][0], dst)) {
+			strcpy(dst, agl_exceptions[i][1]);
+			break;
 		}
 	}
 	ashape(dst, src);
