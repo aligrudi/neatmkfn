@@ -104,6 +104,7 @@ static char *usage =
 	"  -k kmin \tspecify the minimum amount of kerning (0)\n"
 	"  -b      \tinclude glyph bounding boxes\n"
 	"  -l      \tsuppress the ligatures line\n"
+	"  -n      \tsuppress glyph positions\n"
 	"  -S scrs \tcomma-separated list of scripts to include (help to list)\n"
 	"  -L langs\tcomma-separated list of languages to include (help to list)\n"
 	"  -w      \twarn about unsupported font features\n";
@@ -117,6 +118,7 @@ int main(int argc, char *argv[])
 	int bbox = 0;
 	int warn = 0;
 	int ligs = 1;
+	int pos = 1;
 	int i;
 	for (i = 1; i < argc && argv[i][0] == '-'; i++) {
 		switch (argv[i][1]) {
@@ -134,6 +136,9 @@ int main(int argc, char *argv[])
 			break;
 		case 'L':
 			trfn_langs = argv[i][2] ? argv[i] + 2 : argv[++i];
+			break;
+		case 'n':
+			pos = 0;
 			break;
 		case 'o':
 			afm = 0;
@@ -161,7 +166,7 @@ int main(int argc, char *argv[])
 			return 0;
 		}
 	}
-	trfn_init(res, spc, kmin, bbox, ligs);
+	trfn_init(res, spc, kmin, bbox, ligs, pos);
 	if (afm)
 		afm_read();
 	else

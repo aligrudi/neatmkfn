@@ -23,6 +23,7 @@ static int trfn_special;	/* special flag */
 static int trfn_kmin;		/* minimum kerning value */
 static int trfn_bbox;		/* include bounding box */
 static int trfn_noligs;		/* suppress ligatures */
+static int trfn_pos;		/* include glyph positions */
 static char trfn_ligs[8192];	/* font ligatures */
 static char trfn_trname[256];	/* font troff name */
 static char trfn_psname[256];	/* font ps name */
@@ -266,9 +267,9 @@ void trfn_char(char *psname, int n, int u, int wid,
 	/* initializing character attributes */
 	if (trfn_name(uc, psname, u))
 		strcpy(uc, "---");
-	if (n >= 0 && n < 256)
+	if (trfn_pos && n >= 0 && n < 256)
 		sprintf(pos, "%d", n);
-	if (n < 0 && !uc[1] && uc[0] >= 32 && uc[0] <= 125)
+	if (trfn_pos && n < 0 && !uc[1] && uc[0] >= 32 && uc[0] <= 125)
 		if (!strchr(psname, '.'))
 			sprintf(pos, "%d", uc[0]);
 	typ = trfn_type(!strchr(psname, '.') ? uc : "", lly, ury);
@@ -323,7 +324,7 @@ void trfn_print(void)
 	printf("%s", sbuf_buf(&sbuf_kern));
 }
 
-void trfn_init(int res, int spc, int kmin, int bbox, int ligs)
+void trfn_init(int res, int spc, int kmin, int bbox, int ligs, int pos)
 {
 	int i;
 	trfn_div = 7200 / res;
@@ -331,6 +332,7 @@ void trfn_init(int res, int spc, int kmin, int bbox, int ligs)
 	trfn_kmin = kmin;
 	trfn_bbox = bbox;
 	trfn_noligs = !ligs;
+	trfn_pos = pos;
 	sbuf_init(&sbuf_char);
 	sbuf_init(&sbuf_kern);
 	tab_agl = tab_alloc(LEN(agl));
