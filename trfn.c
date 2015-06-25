@@ -273,12 +273,11 @@ void trfn_char(char *psname, int n, int u, int wid,
 		if (!strchr(psname, '.'))
 			sprintf(pos, "%d", uc[0]);
 	typ = trfn_type(!strchr(psname, '.') ? uc : "", lly, ury);
+	if (!trfn_swid && (!strcmp(" ", uc) || !strcmp(" ", uc)))
+		trfn_swid = WX(wid);
 	/* printing troff charset */
-	if (strchr(uc, ' ')) {	/* space not allowed in char names */
-		if (!trfn_swid && !strcmp(" ", uc))
-			trfn_swid = WX(wid);
+	if (strchr(uc, ' '))	/* space not allowed in char names */
 		return;
-	}
 	if (strcmp("---", uc))
 		trfn_lig(uc);
 	sbuf_printf(&sbuf_char, "char %s\t%d", uc, WX(wid));
