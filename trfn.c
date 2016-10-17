@@ -70,7 +70,7 @@ static int utf8get(char **src)
 
 static void utf8put(char **d, int c)
 {
-	int l;
+	int l = 0;
 	if (c > 0xffff) {
 		*(*d)++ = 0xf0 | (c >> 18);
 		l = 3;
@@ -82,7 +82,6 @@ static void utf8put(char **d, int c)
 		l = 1;
 	} else {
 		*(*d)++ = c > 0 ? c : ' ';
-		l = 0;
 	}
 	while (l--)
 		*(*d)++ = 0x80 | ((c >> (l * 6)) & 0x3f);
@@ -208,15 +207,17 @@ static int trfn_name(char *dst, char *src, int codepoint)
 			return 1;
 		}
 	}
-	for (i = 0; i < LEN(agl_exceptions); i++) {
-		if (!strcmp(agl_exceptions[i][0], dst)) {
-			strcpy(dst, agl_exceptions[i][1]);
-			break;
-		}
-	}
 	ashape(dst, src);
 	return *src && strcmp(src, ".medi") && strcmp(src, ".fina") &&
 			strcmp(src, ".init") && strcmp(src, ".isol");
+}
+
+static void trfn_aglexceptions(char *dst)
+{
+	int i;
+	for (i = 0; i < LEN(agl_exceptions); i++)
+		if (!strcmp(agl_exceptions[i][0], dst))
+			strcpy(dst, agl_exceptions[i][1]);
 }
 
 static void trfn_lig(char *c)
@@ -267,6 +268,7 @@ void trfn_char(char *psname, int n, int u, int wid,
 	/* initializing character attributes */
 	if (trfn_name(uc, psname, u))
 		strcpy(uc, "---");
+	trfn_aglexceptions(uc);
 	if (trfn_pos && n >= 0 && n < 256)
 		sprintf(pos, "%d", n);
 	if (trfn_pos && n < 0 && !uc[1] && uc[0] >= 32 && uc[0] <= 125)
