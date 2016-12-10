@@ -60,7 +60,7 @@ static char *scriptorder[][2] = {
 	{"tibt", "ccmp,abvs,blws,calt,liga,kern,abvm,blwm,mkmk"},
 };
 
-/* return 1 if script script is to be included */
+/* return 1 if the given script is to be included */
 int trfn_script(char *script, int nscripts)
 {
 	int i;
@@ -68,9 +68,15 @@ int trfn_script(char *script, int nscripts)
 	for (i = 0; i < LEN(scriptorder); i++)
 		if (script && !strcmp(script, scriptorder[i][0]))
 			trfn_order = scriptorder[i][1];
-	if (!trfn_scripts)
-		return nscripts == 1 || !script ||
-			!strcmp("DFLT", script) || !strcmp("latn", script);
+	/* fill trfn_scripts (if unspecified) in the first call */
+	if (!trfn_scripts) {
+		if (nscripts == 1 || !script)
+			return 1;
+		if (!strcmp("DFLT", script))
+			trfn_scripts = "DFLT";
+		else
+			trfn_scripts = "latn";
+	}
 	if (!strcmp("help", trfn_scripts))
 		fprintf(stderr, "script: %s\n", script ? script : "");
 	if (strchr(script, ' '))
@@ -78,7 +84,7 @@ int trfn_script(char *script, int nscripts)
 	return !!strstr(trfn_scripts, script);
 }
 
-/* return 1 if language lang is to be included */
+/* return 1 if the given language is to be included */
 int trfn_lang(char *lang, int nlangs)
 {
 	if (!trfn_langs)
@@ -92,6 +98,7 @@ int trfn_lang(char *lang, int nlangs)
 	return !!strstr(trfn_langs, lang);
 }
 
+/* return the rank of the given feature, for the current script */
 int trfn_featrank(char *feat)
 {
 	char *s = trfn_order ? strstr(trfn_order, feat) : NULL;
