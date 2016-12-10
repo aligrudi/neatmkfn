@@ -461,6 +461,54 @@ static void otf_gpostype3(void *otf, void *sub, char *feat)
 	}
 }
 
+/* mark-to-base attachment positioning */
+static void otf_gpostype4(void *otf, void *sub, char *feat)
+{
+	int fmt = U16(sub, 0);
+	int mcov[NGLYPHS];	/* mark coverage */
+	int bcov[NGLYPHS];	/* base coverage */
+	int cgrp[1024];		/* glyph groups assigned to classes */
+	int bgrp;		/* the group assigned to base glyphs */
+	int mcnt;		/* mark coverage size */
+	int bcnt;		/* base coverage size */
+	int ccnt;		/* class count */
+	void *marks;		/* mark array table */
+	void *bases;		/* base array table */
+	int i, j;
+	if (fmt != 1)
+		return;
+	mcnt = coverage(sub + U16(sub, 2), mcov);
+	bcnt = coverage(sub + U16(sub, 4), bcov);
+	ccnt = U16(sub, 6);
+	marks = sub + U16(sub, 8);
+	bases = sub + U16(sub, 10);
+	bgrp = ggrp_coverage(bcov, bcnt);
+	for (i = 0; i < ccnt; i++) {
+		int grp[NGLYPHS];
+		int cnt = 0;
+		for (j = 0; j < mcnt; j++)
+			if (U16(marks, 2 + 4 * j) == i)
+				grp[cnt++] = mcov[j];
+		cgrp[i] = ggrp_coverage(grp, cnt);
+	}
+	for (i = 0; i < mcnt; i++) {
+		void *mark = marks + U16(marks, 2 + 4 * i + 2);	/* mark anchor */
+		int dx = -uwid(S16(mark, 2));
+		int dy = uwid(S16(mark, 4));
+		printf("gpos %s 2 @%d %s:%+d%+d%+d%+d\n",
+			feat, bgrp, glyph_name[mcov[i]], dx, dy, 0, 0);
+	}
+	for (i = 0; i < bcnt; i++) {
+		for (j = 0; j < ccnt; j++) {
+			void *base = bases + U16(bases, 2 + ccnt * 2 * i + 2 * j);
+			int dx = uwid(S16(base, 2));
+			int dy = -uwid(S16(base, 4));
+			printf("gpos %s 2 %s @%d:%+d%+d%+d%+d\n",
+				feat, glyph_name[bcov[i]], cgrp[j], dx, dy, 0, 0);
+		}
+	}
+}
+
 /* gsub context */
 struct gctx {
 	int bgrp[GCTXLEN];	/* backtrack coverage arrays */
@@ -740,6 +788,9 @@ static void otf_gpos(void *otf, void *gpos)
 				break;
 			case 3:
 				otf_gpostype3(otf, tab, tag);
+				break;
+			case 4:
+				otf_gpostype4(otf, tab, tag);
 				break;
 			default:
 				otf_unsupported("GPOS", type, 0);
