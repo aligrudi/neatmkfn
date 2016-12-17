@@ -24,7 +24,6 @@
 
 static char *trfn_scripts;	/* filtered scripts */
 static char *trfn_langs;	/* filtered languages */
-static char *trfn_order;	/* feature ordering */
 
 /* OpenType specifies a specific feature order for different scripts */
 static char *scriptorder[][2] = {
@@ -63,11 +62,6 @@ static char *scriptorder[][2] = {
 /* return 1 if the given script is to be included */
 int trfn_script(char *script, int nscripts)
 {
-	int i;
-	trfn_order = NULL;
-	for (i = 0; i < LEN(scriptorder); i++)
-		if (script && !strcmp(script, scriptorder[i][0]))
-			trfn_order = scriptorder[i][1];
 	/* fill trfn_scripts (if unspecified) in the first call */
 	if (!trfn_scripts) {
 		if (nscripts == 1 || !script)
@@ -99,10 +93,19 @@ int trfn_lang(char *lang, int nlangs)
 }
 
 /* return the rank of the given feature, for the current script */
-int trfn_featrank(char *feat)
+int trfn_featrank(char *scrp, char *feat)
 {
-	char *s = trfn_order ? strstr(trfn_order, feat) : NULL;
-	return s ? s - trfn_order : 1000;
+	static char **order;
+	int i;
+	if (!order || strcmp(scrp, order[0])) {
+		order = NULL;
+		for (i = 0; i < LEN(scriptorder); i++)
+			if (!strcmp(scrp, scriptorder[i][0]))
+				order = scriptorder[i];
+	}
+	if (order && strstr(order[1], feat))
+		return strstr(order[1], feat) - order[1];
+	return 1000;
 }
 
 int otf_read(void);

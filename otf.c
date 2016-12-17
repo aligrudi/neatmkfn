@@ -35,7 +35,7 @@ static int glyph_n;
 static int upm;			/* units per em */
 static int res;			/* device resolution */
 static int kmin;		/* minimum kerning value */
-static int warn;
+static int warn;		/* report unsupported tables */
 
 static char *macset[];
 
@@ -48,6 +48,13 @@ static int uwid(int w)
 {
 	int d = 7200 / res;
 	return (w < 0 ? owid(w) - d / 2 : owid(w) + d / 2) / d;
+}
+
+/* weather the script is right-to-left */
+static int otf_r2l(char *feat)
+{
+	char *scrp = strchr(feat, ':') + 1;
+	return !strcmp("arab", scrp) || !strcmp("hebr", scrp);
 }
 
 /* report unsupported otf tables */
@@ -494,15 +501,23 @@ static void otf_gpostype4(void *otf, void *sub, char *feat)
 	for (i = 0; i < mcnt; i++) {
 		void *mark = marks + U16(marks, 2 + 4 * i + 2);	/* mark anchor */
 		int dx = -uwid(S16(mark, 2));
-		int dy = uwid(S16(mark, 4));
+		int dy = -uwid(S16(mark, 4));
+		if (otf_r2l(feat)) {
+			dx += uwid(glyph_wid[mcov[i]]);
+			dy = -dy;
+		}
 		printf("gpos %s 2 @%d %s:%+d%+d%+d%+d\n",
 			feat, bgrp, glyph_name[mcov[i]], dx, dy, 0, 0);
 	}
 	for (i = 0; i < bcnt; i++) {
 		for (j = 0; j < ccnt; j++) {
 			void *base = bases + U16(bases, 2 + ccnt * 2 * i + 2 * j);
-			int dx = uwid(S16(base, 2));
-			int dy = -uwid(S16(base, 4));
+			int dx = uwid(S16(base, 2)) - uwid(glyph_wid[bcov[i]]);
+			int dy = uwid(S16(base, 4));
+			if (otf_r2l(feat)) {
+				dx += uwid(glyph_wid[bcov[i]]);
+				dy = -dy;
+			}
 			printf("gpos %s 2 %s @%d:%+d%+d%+d%+d\n",
 				feat, glyph_name[bcov[i]], cgrp[j], dx, dy, 0, 0);
 		}
@@ -685,12 +700,13 @@ static void otf_gsubtype6(void *otf, void *sub, char *feat, void *gsub)
 
 /* an otf gsub/gpos lookup */
 struct otflookup {
+	char scrp[8];		/* script name */
 	char feat[8];		/* feature name */
 	int lookup;		/* index into the lookup table */
 };
 
 /* parse the given gsub/gpos feature table */
-static int otf_featrec(void *otf, void *gtab, void *featrec, struct otflookup *lookups)
+static int otf_featrec(void *otf, void *gtab, void *featrec, char *script, struct otflookup *lookups)
 {
 	void *feats = gtab + U16(gtab, 6);
 	void *feat = feats + U16(featrec, 4);
@@ -699,13 +715,14 @@ static int otf_featrec(void *otf, void *gtab, void *featrec, struct otflookup *l
 	for (i = 0; i < nlookups; i++) {
 		memcpy(lookups[i].feat, featrec, 4);
 		lookups[i].feat[4] = '\0';
+		strcpy(lookups[i].scrp, script);
 		lookups[i].lookup = U16(feat, 4 + 2 * i);
 	}
 	return nlookups;
 }
 
 /* parse the given language table and its feature tables */
-static int otf_lang(void *otf, void *gtab, void *lang, struct otflookup *lookups)
+static int otf_lang(void *otf, void *gtab, void *lang, char *script, struct otflookup *lookups)
 {
 	void *feats = gtab + U16(gtab, 6);
 	int featidx = U16(lang, 2);
@@ -713,10 +730,10 @@ static int otf_lang(void *otf, void *gtab, void *lang, struct otflookup *lookups
 	int n = 0;
 	int i;
 	if (featidx != 0xffff)
-		n += otf_featrec(otf, gtab, feats + 2 + 6 * featidx, lookups + n);
+		n += otf_featrec(otf, gtab, feats + 2 + 6 * featidx, script, lookups + n);
 	for (i = 0; i < nfeat; i++)
 		n += otf_featrec(otf, gtab,
-				feats + 2 + 6 * U16(lang, 6 + 2 * i), lookups + n);
+				feats + 2 + 6 * U16(lang, 6 + 2 * i), script, lookups + n);
 	return n;
 }
 
@@ -724,8 +741,10 @@ static int lookupcmp(void *v1, void *v2)
 {
 	struct otflookup *l1 = v1;
 	struct otflookup *l2 = v2;
-	if (trfn_featrank(l1->feat) != trfn_featrank(l2->feat))
-		return trfn_featrank(l1->feat) - trfn_featrank(l2->feat);
+	if (strcmp(l1->scrp, l2->scrp))
+		return strcmp(l1->scrp, l2->scrp);
+	if (trfn_featrank(l1->scrp, l1->feat) != trfn_featrank(l1->scrp, l2->feat))
+		return trfn_featrank(l1->scrp, l1->feat) - trfn_featrank(l1->scrp, l2->feat);
 	return l1->lookup - l2->lookup;
 }
 
@@ -735,26 +754,28 @@ static int otf_gtab(void *otf, void *gpos, struct otflookup *lookups)
 	void *scripts = gpos + U16(gpos, 4);
 	int nscripts, nlangs;
 	void *script;
-	char tag[8];
+	char stag[8], ltag[8];		/* script and language tags */
 	int i, j;
 	int n = 0;
 	nscripts = U16(scripts, 0);
 	for (i = 0; i < nscripts; i++) {
 		void *grec = scripts + 2 + 6 * i;
-		memcpy(tag, grec, 4);
-		tag[4] = '\0';
-		if (!trfn_script(tag, nscripts))
+		memcpy(stag, grec, 4);
+		stag[4] = '\0';
+		if (!trfn_script(stag, nscripts))
 			continue;
 		script = scripts + U16(grec, 4);
 		nlangs = U16(script, 2);
 		if (U16(script, 0) && trfn_lang(NULL, nlangs + (U16(script, 0) != 0)))
-			n += otf_lang(otf, gpos, script + U16(script, 0), lookups + n);
+			n += otf_lang(otf, gpos, script + U16(script, 0),
+						stag, lookups + n);
 		for (j = 0; j < nlangs; j++) {
 			void *lrec = script + 4 + 6 * j;
-			memcpy(tag, lrec, 4);
-			tag[4] = '\0';
-			if (trfn_lang(tag, nlangs + (U16(script, 0) != 0)))
-				n += otf_lang(otf, gpos, script + U16(lrec, 4), lookups + n);
+			memcpy(ltag, lrec, 4);
+			ltag[4] = '\0';
+			if (trfn_lang(ltag, nlangs + (U16(script, 0) != 0)))
+				n += otf_lang(otf, gpos, script + U16(lrec, 4),
+						stag, lookups + n);
 		}
 	}
 	qsort(lookups, n, sizeof(lookups[0]), (void *) lookupcmp);
@@ -766,12 +787,14 @@ static void otf_gpos(void *otf, void *gpos)
 	struct otflookup lookups[NLOOKUPS];
 	void *lookuplist = gpos + U16(gpos, 8);
 	int nlookups = otf_gtab(otf, gpos, lookups);
+	char tag[16];
 	int i, j;
 	for (i = 0; i < nlookups; i++) {
 		void *lookup = lookuplist + U16(lookuplist, 2 + 2 * lookups[i].lookup);
-		char *tag = lookups[i].feat;
 		int ltype = U16(lookup, 0);
 		int ntabs = U16(lookup, 4);
+		sprintf(tag, "%s:%s", lookups[i].feat,
+				lookups[i].scrp[0] ? lookups[i].scrp : "DFLT");
 		for (j = 0; j < ntabs; j++) {
 			void *tab = lookup + U16(lookup, 6 + 2 * j);
 			int type = ltype;
@@ -804,12 +827,14 @@ static void otf_gsub(void *otf, void *gsub)
 	struct otflookup lookups[NLOOKUPS];
 	void *lookuplist = gsub + U16(gsub, 8);
 	int nlookups = otf_gtab(otf, gsub, lookups);
+	char tag[16];
 	int i, j;
 	for (i = 0; i < nlookups; i++) {
 		void *lookup = lookuplist + U16(lookuplist, 2 + 2 * lookups[i].lookup);
-		char *tag = lookups[i].feat;
 		int ltype = U16(lookup, 0);
 		int ntabs = U16(lookup, 4);
+		sprintf(tag, "%s:%s", lookups[i].feat,
+				lookups[i].scrp[0] ? lookups[i].scrp : "DFLT");
 		for (j = 0; j < ntabs; j++) {
 			void *tab = lookup + U16(lookup, 6 + 2 * j);
 			int type = ltype;
