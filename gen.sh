@@ -1,14 +1,11 @@
 #!/bin/sh
 # Generate a neatroff output device
 
-# ghostscript fonts directory; should be in GS_FONTPATH
-FP="/path/to/gs/fonts"
-# output device directory
-TP="/path/to/font/devutf"
-# device resolution
-RES="720"
-# pattern of ligatures to ignore
-LIGIGN="\(ct\|st\|sp\|Rp\)"
+FP="/path/to/gs/fonts"		# ghostscript fonts directory; should be in GS_FONTPATH
+TP="/path/to/font/devutf"	# output device directory
+RES="720"			# device resolution
+SCR="-Slatn,arab"		# scripts to include
+LIGIGN="\(ct\|st\|sp\|Rp\)"	# pattern of ligatures to ignore
 
 test -n "$1" && FP="$1"
 test -n "$2" && TP="$2"
@@ -33,7 +30,7 @@ afmconv()
 ttfconv()
 {
 	echo $1
-	cat $2 | ./mkfn -b -l -o -r$RES -t $1 $3 $4 $5 $6 $7 | \
+	cat $2 | ./mkfn -b -l -o -r$RES $SCR -t $1 $3 $4 $5 $6 $7 | \
 		sed "/^ligatures /s/ $LIGIGN//g" >$TP/$1
 }
 
