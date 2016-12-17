@@ -445,26 +445,47 @@ static void otf_gpostype3(void *otf, void *sub, char *feat)
 {
 	int fmt = U16(sub, 0);
 	int cov[NGLYPHS];
+	int icov[NGLYPHS];
+	int ocov[NGLYPHS];
 	int i, n;
+	int icnt = 0;
+	int ocnt = 0;
+	int igrp, ogrp;
 	coverage(sub + U16(sub, 2), cov);
 	if (fmt != 1)
 		return;
 	n = U16(sub, 4);
+	for (i = 0; i < n; i++)
+		if (U16(sub, 6 + 4 * i))
+			ocov[ocnt++] = cov[i];
+	for (i = 0; i < n; i++)
+		if (U16(sub, 6 + 4 * i + 2))
+			icov[icnt++] = cov[i];
+	igrp = ggrp_coverage(icov, icnt);
+	ogrp = ggrp_coverage(ocov, ocnt);
 	for (i = 0; i < n; i++) {
 		int prev = U16(sub, 6 + 4 * i);
 		int next = U16(sub, 6 + 4 * i + 2);
-		printf("gcur %s %s", feat, glyph_name[cov[i]]);
-		if (prev)
-			printf(" %d %d", uwid(S16(sub, prev + 2)),
-					uwid(S16(sub, prev + 4)));
-		else
-			printf(" - -");
-		if (next)
-			printf(" %d %d", uwid(S16(sub, next + 2)),
-					uwid(S16(sub, next + 4)));
-		else
-			printf(" - -");
-		printf("\n");
+		if (prev) {
+			int dx = -uwid(S16(sub, prev + 2));
+			int dy = -uwid(S16(sub, prev + 4));
+			if (otf_r2l(feat)) {
+				dx += uwid(glyph_wid[cov[i]]);
+			}
+			printf("gpos %s 2 @%d %s:%+d%+d%+d%+d\n",
+				feat, igrp, glyph_name[cov[i]],
+				0, 0, dx, dy);
+		}
+		if (next) {
+			int dx = uwid(S16(sub, next + 2)) - uwid(glyph_wid[cov[i]]);
+			int dy = uwid(S16(sub, next + 4));
+			if (otf_r2l(feat)) {
+				dx += uwid(glyph_wid[cov[i]]);
+			}
+			printf("gpos %s 2 %s @%d:%+d%+d%+d%+d\n",
+				feat, glyph_name[cov[i]], ogrp,
+				0, 0, dx, dy);
+		}
 	}
 }
 
