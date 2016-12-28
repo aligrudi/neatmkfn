@@ -25,6 +25,7 @@ static int trfn_bbox;		/* include bounding box */
 static int trfn_noligs;		/* suppress ligatures */
 static int trfn_pos;		/* include glyph positions */
 static char trfn_ligs[8192];	/* font ligatures */
+static char trfn_ligs2[8192];	/* font ligatures, whose length is two */
 static char trfn_trname[256];	/* font troff name */
 static char trfn_psname[256];	/* font ps name */
 /* character type */
@@ -220,6 +221,12 @@ static void trfn_aglexceptions(char *dst)
 			strcpy(dst, agl_exceptions[i][1]);
 }
 
+static void trfn_ligput(char *c)
+{
+	char *dst = strlen(c) == 2 ? trfn_ligs2 : trfn_ligs;
+	sprintf(strchr(dst, '\0'), "%s ", c);
+}
+
 static void trfn_lig(char *c)
 {
 	int i;
@@ -227,12 +234,11 @@ static void trfn_lig(char *c)
 		if (!strcmp(agl_exceptions[i][1], c))
 			return;
 	if (c[0] && c[1] && strlen(c) > utf8len((unsigned char) c[0])) {
-		sprintf(strchr(trfn_ligs, '\0'), "%s ", c);
+		trfn_ligput(c);
 	} else {
 		for (i = 0; i < LEN(ligs_utf8); i++)
 			if (!strcmp(ligs_utf8[i][0], c))
-				sprintf(strchr(trfn_ligs, '\0'),
-					"%s ", ligs_utf8[i][1]);
+				trfn_ligput(ligs_utf8[i][1]);
 	}
 }
 
@@ -318,7 +324,7 @@ void trfn_print(void)
 		printf("fontname %s\n", trfn_psname);
 	printf("spacewidth %d\n", trfn_swid);
 	if (!trfn_noligs)
-		printf("ligatures %s0\n", trfn_ligs);
+		printf("ligatures %s%s0\n", trfn_ligs, trfn_ligs2);
 	if (trfn_special)
 		printf("special\n");
 	printf("%s", sbuf_buf(&sbuf_char));
