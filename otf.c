@@ -287,7 +287,7 @@ static int intcmp(void *v1, void *v2)
 	return *(int *) v1 - *(int *) v2;
 }
 
-int ggrp_make(int *src, int n);
+static int ggrp_make(int *src, int n);
 
 static int ggrp_class(int *src, int *cls, int nsrc, int id)
 {
@@ -954,7 +954,7 @@ static int ggrp_find(int *src, int n)
 	return -1;
 }
 
-int ggrp_make(int *src, int n)
+static int ggrp_make(int *src, int n)
 {
 	int id = ggrp_find(src, n);
 	int i;
