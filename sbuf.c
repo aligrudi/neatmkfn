@@ -1,3 +1,4 @@
+/* variable length string buffer */
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -5,80 +6,92 @@
 #include "sbuf.h"
 
 #define MAX(a, b)	((a) < (b) ? (b) : (a))
-#define SBUF_SZ		512
+#define ALIGN(n, a)	(((n) + (a) - 1) & ~((a) - 1))
+#define NEXTSZ(o, r)	ALIGN(MAX((o) * 2, (o) + (r)), SBUFSZ)
 
-static void sbuf_extend(struct sbuf *sbuf, int amount)
+#define SBUFSZ		128
+
+struct sbuf {
+	char *s;		/* allocated buffer */
+	int s_n;		/* length of the string stored in s[] */
+	int s_sz;		/* size of memory allocated for s[] */
+};
+
+static void sbuf_extend(struct sbuf *sbuf, int newsz)
 {
 	char *s = sbuf->s;
-	sbuf->sz = (MAX(1, amount) + SBUF_SZ - 1) & ~(SBUF_SZ - 1);
-	sbuf->s = malloc(sbuf->sz);
-	if (sbuf->n)
-		memcpy(sbuf->s, s, sbuf->n);
+	sbuf->s_sz = newsz;
+	sbuf->s = malloc(sbuf->s_sz);
+	if (sbuf->s_n)
+		memcpy(sbuf->s, s, sbuf->s_n);
 	free(s);
 }
 
-void sbuf_init(struct sbuf *sbuf)
+struct sbuf *sbuf_make(void)
 {
-	memset(sbuf, 0, sizeof(*sbuf));
-	sbuf_extend(sbuf, SBUF_SZ);
+	struct sbuf *sb = malloc(sizeof(*sb));
+	memset(sb, 0, sizeof(*sb));
+	return sb;
 }
 
-void sbuf_add(struct sbuf *sbuf, int c)
+char *sbuf_buf(struct sbuf *sb)
 {
-	if (sbuf->n + 2 >= sbuf->sz)
-		sbuf_extend(sbuf, sbuf->sz * 2);
-	sbuf->s[sbuf->n++] = c;
+	if (!sb->s)
+		sbuf_extend(sb, 1);
+	sb->s[sb->s_n] = '\0';
+	return sb->s;
 }
 
-void sbuf_append(struct sbuf *sbuf, char *s)
+char *sbuf_done(struct sbuf *sb)
 {
-	int len = strlen(s);
-	if (sbuf->n + len + 1 >= sbuf->sz)
-		sbuf_extend(sbuf, sbuf->n + len + 1);
-	memcpy(sbuf->s + sbuf->n, s, len);
-	sbuf->n += len;
+	char *s = sbuf_buf(sb);
+	free(sb);
+	return s;
 }
 
-void sbuf_printf(struct sbuf *sbuf, char *s, ...)
+void sbuf_free(struct sbuf *sb)
 {
-	char buf[1024];
-	va_list ap;
-	va_start(ap, s);
-	vsprintf(buf, s, ap);
-	va_end(ap);
-	sbuf_append(sbuf, buf);
+	free(sb->s);
+	free(sb);
 }
 
-void sbuf_putnl(struct sbuf *sbuf)
+void sbuf_chr(struct sbuf *sbuf, int c)
 {
-	if (sbuf->n && sbuf->s[sbuf->n - 1] != '\n')
-		sbuf_add(sbuf, '\n');
+	if (sbuf->s_n + 2 >= sbuf->s_sz)
+		sbuf_extend(sbuf, NEXTSZ(sbuf->s_sz, 1));
+	sbuf->s[sbuf->s_n++] = c;
 }
 
-int sbuf_empty(struct sbuf *sbuf)
+void sbuf_mem(struct sbuf *sbuf, char *s, int len)
 {
-	return !sbuf->n;
+	if (sbuf->s_n + len + 1 >= sbuf->s_sz)
+		sbuf_extend(sbuf, NEXTSZ(sbuf->s_sz, len + 1));
+	memcpy(sbuf->s + sbuf->s_n, s, len);
+	sbuf->s_n += len;
 }
 
-char *sbuf_buf(struct sbuf *sbuf)
+void sbuf_str(struct sbuf *sbuf, char *s)
 {
-	sbuf->s[sbuf->n] = '\0';
-	return sbuf->s;
+	sbuf_mem(sbuf, s, strlen(s));
 }
 
 int sbuf_len(struct sbuf *sbuf)
 {
-	return sbuf->n;
+	return sbuf->s_n;
 }
 
-/* shorten the sbuf */
-void sbuf_cut(struct sbuf *sbuf, int n)
+void sbuf_cut(struct sbuf *sb, int len)
 {
-	if (sbuf->n > n)
-		sbuf->n = n;
+	if (sb->s_n > len)
+		sb->s_n = len;
 }
 
-void sbuf_done(struct sbuf *sbuf)
+void sbuf_printf(struct sbuf *sbuf, char *s, ...)
 {
-	free(sbuf->s);
+	char buf[256];
+	va_list ap;
+	va_start(ap, s);
+	vsnprintf(buf, sizeof(buf), s, ap);
+	va_end(ap);
+	sbuf_str(sbuf, buf);
 }

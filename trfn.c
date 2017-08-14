@@ -15,8 +15,8 @@
 #define GNLEN		64	/* glyph name length */
 #define AGLLEN		8192	/* adobe glyphlist length */
 
-static struct sbuf sbuf_char;	/* characters */
-static struct sbuf sbuf_kern;	/* kerning pairs */
+static struct sbuf *sbuf_char;	/* characters */
+static struct sbuf *sbuf_kern;	/* kerning pairs */
 static int trfn_div;		/* divisor of widths */
 static int trfn_swid;		/* space width */
 static int trfn_special;	/* special flag */
@@ -288,20 +288,20 @@ void trfn_char(char *psname, int n, int u, int wid,
 		return;
 	if (strcmp("---", uc))
 		trfn_lig(uc);
-	sbuf_printf(&sbuf_char, "char %s\t%d", uc, WX(wid));
+	sbuf_printf(sbuf_char, "char %s\t%d", uc, WX(wid));
 	if (trfn_bbox && (llx || lly || urx || ury))
-		sbuf_printf(&sbuf_char, ",%d,%d,%d,%d",
+		sbuf_printf(sbuf_char, ",%d,%d,%d,%d",
 			WX(llx), WX(lly), WX(urx), WX(ury));
-	sbuf_printf(&sbuf_char, "\t%d\t%s\t%s\n", typ, psname, pos);
+	sbuf_printf(sbuf_char, "\t%d\t%s\t%s\n", typ, psname, pos);
 	a_tr = tab_get(tab_alts, uc);
 	while (a_tr && *a_tr)
-		sbuf_printf(&sbuf_char, "char %s\t\"\n", *a_tr++);
+		sbuf_printf(sbuf_char, "char %s\t\"\n", *a_tr++);
 }
 
 void trfn_kern(char *c1, char *c2, int x)
 {
 	if (WX(x) && abs(WX(x)) >= trfn_kmin)
-		sbuf_printf(&sbuf_kern, "kern %s\t%s\t%d\n", c1, c2, WX(x));
+		sbuf_printf(sbuf_kern, "kern %s\t%s\t%d\n", c1, c2, WX(x));
 }
 
 void trfn_trfont(char *name)
@@ -327,8 +327,8 @@ void trfn_print(void)
 		printf("ligatures %s%s0\n", trfn_ligs, trfn_ligs2);
 	if (trfn_special)
 		printf("special\n");
-	printf("%s", sbuf_buf(&sbuf_char));
-	printf("%s", sbuf_buf(&sbuf_kern));
+	fputs(sbuf_buf(sbuf_char), stdout);
+	fputs(sbuf_buf(sbuf_kern), stdout);
 }
 
 void trfn_init(int res, int spc, int kmin, int bbox, int ligs, int pos)
@@ -340,8 +340,8 @@ void trfn_init(int res, int spc, int kmin, int bbox, int ligs, int pos)
 	trfn_bbox = bbox;
 	trfn_noligs = !ligs;
 	trfn_pos = pos;
-	sbuf_init(&sbuf_char);
-	sbuf_init(&sbuf_kern);
+	sbuf_char = sbuf_make();
+	sbuf_kern = sbuf_make();
 	tab_agl = tab_alloc(LEN(agl));
 	for (i = 0; i < LEN(agl); i++)
 		tab_put(tab_agl, agl[i][0], agl[i][1]);
@@ -352,8 +352,8 @@ void trfn_init(int res, int spc, int kmin, int bbox, int ligs, int pos)
 
 void trfn_done(void)
 {
-	sbuf_done(&sbuf_char);
-	sbuf_done(&sbuf_kern);
+	sbuf_free(sbuf_char);
+	sbuf_free(sbuf_kern);
 	tab_free(tab_alts);
 	if (tab_agl)
 		tab_free(tab_agl);
