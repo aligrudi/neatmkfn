@@ -4,14 +4,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include "sbuf.h"
 #include "trfn.h"
+
+#define MAX(a, b)	((a) < (b) ? (b) : (a))
 
 #define NGLYPHS		(1 << 14)
 #define NLOOKUPS	(1 << 12)
 #define GNLEN		(64)
-#define BUFLEN		(1 << 23)
 #define NGRPS		2048
-#define MAX(a, b)	((a) < (b) ? (b) : (a))
 
 #define U32(buf, off)		(htonl(*(u32 *) ((buf) + (off))))
 #define U16(buf, off)		(htons(*(u16 *) ((buf) + (off))))
@@ -883,34 +884,29 @@ static void otf_gsub(void *otf, void *gsub)
 	}
 }
 
-static int xread(int fd, char *buf, int len)
+static void *otf_input(int fd)
 {
+	struct sbuf *sb = sbuf_make();
+	char buf[1 << 12];
 	int nr = 0;
-	while (nr < len) {
-		int ret = read(fd, buf + nr, len - nr);
-		if (ret == -1 && (errno == EAGAIN || errno == EINTR))
-			continue;
-		if (ret <= 0)
-			break;
-		nr += ret;
-	}
-	return nr;
+	while ((nr = read(fd, buf, sizeof(buf))) > 0)
+		sbuf_mem(sb, buf, nr);
+	return sbuf_done(sb);
 }
 
-static char buf[BUFLEN];
+static char *otf_buf;
 
 int otf_read(void)
 {
 	int i;
-	if (xread(0, buf, sizeof(buf)) <= 0)
-		return 1;
-	upm = U16(otf_table(buf, "head"), 18);
-	otf_name(buf, otf_table(buf, "name"));
-	otf_cmap(buf, otf_table(buf, "cmap"));
-	otf_post(buf, otf_table(buf, "post"));
-	if (otf_table(buf, "glyf"))
-		otf_glyf(buf, otf_table(buf, "glyf"));
-	otf_hmtx(buf, otf_table(buf, "hmtx"));
+	otf_buf = otf_input(0);
+	upm = U16(otf_table(otf_buf, "head"), 18);
+	otf_name(otf_buf, otf_table(otf_buf, "name"));
+	otf_cmap(otf_buf, otf_table(otf_buf, "cmap"));
+	otf_post(otf_buf, otf_table(otf_buf, "post"));
+	if (otf_table(otf_buf, "glyf"))
+		otf_glyf(otf_buf, otf_table(otf_buf, "glyf"));
+	otf_hmtx(otf_buf, otf_table(otf_buf, "hmtx"));
 	for (i = 0; i < glyph_n; i++) {
 		trfn_char(glyph_name[i], -1,
 			glyph_code[i] != 0xffff ? glyph_code[i] : 0,
@@ -918,8 +914,8 @@ int otf_read(void)
 			owid(glyph_bbox[i][0]), owid(glyph_bbox[i][1]),
 			owid(glyph_bbox[i][2]), owid(glyph_bbox[i][3]));
 	}
-	if (otf_table(buf, "kern"))
-		otf_kern(buf, otf_table(buf, "kern"));
+	if (otf_table(otf_buf, "kern"))
+		otf_kern(otf_buf, otf_table(otf_buf, "kern"));
 	return 0;
 }
 
@@ -928,10 +924,10 @@ void otf_feat(int r, int k, int w)
 	res = r;
 	kmin = k;
 	warn = w;
-	if (otf_table(buf, "GSUB"))
-		otf_gsub(buf, otf_table(buf, "GSUB"));
-	if (otf_table(buf, "GPOS"))
-		otf_gpos(buf, otf_table(buf, "GPOS"));
+	if (otf_table(otf_buf, "GSUB"))
+		otf_gsub(otf_buf, otf_table(otf_buf, "GSUB"));
+	if (otf_table(otf_buf, "GPOS"))
+		otf_gpos(otf_buf, otf_table(otf_buf, "GPOS"));
 }
 
 /* glyph groups */
