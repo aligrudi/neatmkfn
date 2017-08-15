@@ -12,7 +12,7 @@ test -n "$2" && TP="$2"
 
 # creating DESC
 mkdir -p $TP
-echo "fonts 10 R I B BI CW H HI HB S1 S" >$TP/DESC
+echo "fonts 10 R I B BI CR HR HI HB S1 S" >$TP/DESC
 echo "res $RES" >>$TP/DESC
 echo "hor 1" >>$TP/DESC
 echo "ver 1" >>$TP/DESC
@@ -44,46 +44,54 @@ otfconv()
 	rm $TTF
 }
 
-# The standard fonts
-afmconv R	$FP/n021003l.afm	-pTimes-Roman
-afmconv I	$FP/n021023l.afm	-pTimes-Italic
-afmconv B	$FP/n021004l.afm	-pTimes-Bold
-afmconv BI	$FP/n021024l.afm	-pTimes-BoldItalic
-afmconv S	$FP/s050000l.afm	-pSymbol -s
-afmconv S1	$FP/n021003l.afm	-pTimes-Roman -s
-afmconv AR	$FP/a010013l.afm	-pAvantGarde-Book
-afmconv AI	$FP/a010033l.afm	-pAvantGarde-BookOblique
-afmconv AB	$FP/a010015l.afm	-pAvantGarde-Demi
-afmconv AX	$FP/a010035l.afm	-pAvantGarde-DemiOblique
-afmconv H	$FP/n019003l.afm	-pHelvetica
-afmconv HI	$FP/n019023l.afm	-pHelvetica-Oblique
-afmconv HB	$FP/n019004l.afm	-pHelvetica-Bold
-afmconv HX	$FP/n019024l.afm	-pHelvetica-BoldOblique
-afmconv Hr	$FP/n019043l.afm	-pHelvetica-Narrow
-afmconv Hi	$FP/n019063l.afm	-pHelvetica-Narrow-Oblique
-afmconv Hb	$FP/n019044l.afm	-pHelvetica-Narrow-Bold
-afmconv Hx	$FP/n019064l.afm	-pHelvetica-Narrow-BoldOblique
-afmconv KR	$FP/b018012l.afm	-pBookman-Light
-afmconv KI	$FP/b018032l.afm	-pBookman-LightItalic
-afmconv KB	$FP/b018015l.afm	-pBookman-Demi
-afmconv KX	$FP/b018035l.afm	-pBookman-DemiItalic
-afmconv NR	$FP/c059013l.afm	-pNewCenturySchlbk-Roman
-afmconv NI	$FP/c059033l.afm	-pNewCenturySchlbk-Italic
-afmconv NB	$FP/c059016l.afm	-pNewCenturySchlbk-Bold
-afmconv NX	$FP/c059036l.afm	-pNewCenturySchlbk-BoldItalic
-afmconv PA	$FP/p052003l.afm	-pPalatino-Roman
-afmconv PR	$FP/p052003l.afm	-pPalatino-Roman
-afmconv PI	$FP/p052023l.afm	-pPalatino-Italic
-afmconv PB	$FP/p052004l.afm	-pPalatino-Bold
-afmconv PX	$FP/p052024l.afm	-pPalatino-BoldItalic
-afmconv C	$FP/n022003l.afm	-pCourier
-afmconv CO	$FP/n022003l.afm	-pCourier
-afmconv CW	$FP/n022003l.afm	-pCourier
-afmconv CI	$FP/n022023l.afm	-pCourier-Oblique
-afmconv CB	$FP/n022004l.afm	-pCourier-Bold
-afmconv CX	$FP/n022024l.afm	-pCourier-BoldOblique
-afmconv ZI	$FP/z003034l.afm	-pZapfChancery-MediumItalic
-afmconv ZD	$FP/d050000l.afm	-pZapfDingbats
+# stdfont troff_name gs_font urw_font extra_mktrfn_options
+stdfont()
+{
+	if test -f $2
+	then
+		afmconv $1 "$2" $4 $5 $6 $7 $8 $9
+	else
+		afmconv $1 "$3" $4 $5 $6 $7 $8 $9
+	fi
+}
+
+# The standard fonts; ghostscriptfonts or urw-core35
+stdfont R	$FP/n021003l.afm $FP/NimbusRoman-Regular.afm	-pTimes-Roman
+stdfont I	$FP/n021023l.afm $FP/NimbusRoman-Italic.afm	-pTimes-Italic
+stdfont B	$FP/n021004l.afm $FP/NimbusRoman-Bold.afm	-pTimes-Bold
+stdfont BI	$FP/n021024l.afm $FP/NimbusRoman-BoldItalic.afm	-pTimes-BoldItalic
+stdfont S	$FP/s050000l.afm $FP/StandardSymbolsPS.afm	-pSymbol -s
+stdfont S1	$FP/n021003l.afm $FP/NimbusRoman-Regular.afm	-pTimes-Roman -s
+stdfont AR	$FP/a010013l.afm $FP/URWGothic-Book.afm		-pAvantGarde-Book
+stdfont AI	$FP/a010033l.afm $FP/URWGothic-BookOblique.afm	-pAvantGarde-BookOblique
+stdfont AB	$FP/a010015l.afm $FP/URWGothic-Demi.afm		-pAvantGarde-Demi
+stdfont AX	$FP/a010035l.afm $FP/URWGothic-DemiOblique.afm	-pAvantGarde-DemiOblique
+stdfont HR	$FP/n019003l.afm $FP/NimbusSans-Regular.afm	-pHelvetica
+stdfont HI	$FP/n019023l.afm $FP/NimbusSans-Oblique.afm	-pHelvetica-Oblique
+stdfont HB	$FP/n019004l.afm $FP/NimbusSans-Bold.afm		-pHelvetica-Bold
+stdfont HX	$FP/n019024l.afm $FP/NimbusSans-BoldOblique.afm	-pHelvetica-BoldOblique
+stdfont Hr	$FP/n019043l.afm $FP/NimbusSansNarrow-Regular.afm	-pHelvetica-Narrow
+stdfont Hi	$FP/n019063l.afm $FP/NimbusSansNarrow-Oblique.afm	-pHelvetica-Narrow-Oblique
+stdfont Hb	$FP/n019044l.afm $FP/NimbusSansNarrow-Bold.afm	-pHelvetica-Narrow-Bold
+stdfont Hx	$FP/n019024l.afm $FP/NimbusSansNarrow-BdOblique.afm	-pHelvetica-Narrow-BoldOblique
+stdfont KR	$FP/b018012l.afm $FP/URWBookman-Light.afm		-pBookman-Light
+stdfont KI	$FP/b018032l.afm $FP/URWBookman-LightItalic.afm	-pBookman-LightItalic
+stdfont KB	$FP/b018015l.afm $FP/URWBookman-Demi.afm		-pBookman-Demi
+stdfont KX	$FP/b018035l.afm $FP/URWBookman-DemiItalic.afm	-pBookman-DemiItalic
+stdfont NR	$FP/c059013l.afm $FP/C059-Roman.afm		-pNewCenturySchlbk-Roman
+stdfont NI	$FP/c059033l.afm $FP/C059-Italic.afm		-pNewCenturySchlbk-Italic
+stdfont NB	$FP/c059016l.afm $FP/C059-Bold.afm		-pNewCenturySchlbk-Bold
+stdfont NX	$FP/c059036l.afm $FP/C059-BdIta.afm		-pNewCenturySchlbk-BoldItalic
+stdfont PA	$FP/p052003l.afm $FP/P052-Roman.afm		-pPalatino-Roman
+stdfont PR	$FP/p052003l.afm $FP/P052-Roman.afm		-pPalatino-Roman
+stdfont PI	$FP/p052023l.afm $FP/P052-Italic.afm		-pPalatino-Italic
+stdfont PB	$FP/p052004l.afm $FP/P052-Bold.afm		-pPalatino-Bold
+stdfont PX	$FP/p052024l.afm $FP/P052-BoldItalic.afm		-pPalatino-BoldItalic
+stdfont CR	$FP/n022003l.afm $FP/NimbusMonoPS-Regular.afm	-pCourier
+stdfont CI	$FP/n022023l.afm $FP/NimbusMonoPS-Italic.afm	-pCourier-Oblique
+stdfont CB	$FP/n022004l.afm $FP/NimbusMonoPS-Bold.afm	-pCourier-Bold
+stdfont CX	$FP/n022024l.afm $FP/NimbusMonoPS-BoldItalic.afm	-pCourier-BoldOblique
+stdfont ZI	$FP/z003034l.afm $FP/Z003-MediumItalic.afm	-pZapfChancery-MediumItalic
 
 # The first argument of afmconv, ttfconv, and otfconv is the troff
 # name of the font and their second argument is its path. Any other
