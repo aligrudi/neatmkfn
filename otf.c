@@ -8,6 +8,7 @@
 #include "trfn.h"
 
 #define MAX(a, b)	((a) < (b) ? (b) : (a))
+#define LEN(a)		(sizeof(a) / sizeof((a)[0]))
 
 #define NGLYPHS		(1 << 14)
 #define NLOOKUPS	(1 << 12)
@@ -39,6 +40,7 @@ static int kmin;		/* minimum kerning value */
 static int warn;		/* report unsupported tables */
 
 static char *macset[];
+static char *stdset[];
 
 static int owid(int w)
 {
@@ -156,15 +158,15 @@ static void otf_post(void *otf, void *post)
 	void *names;			/* glyph names */
 	int cname = 0;
 	int i;
-	if (U32(post, 0) != 0x00020000)
-		return;
 	post2 = post + 32;
 	glyph_n = U16(post2, 0);
+	if (U32(post, 0) != 0x20000)
+		return;
 	index = post2 + 2;
 	names = index + 2 * glyph_n;
 	for (i = 0; i < glyph_n; i++) {
 		int idx = U16(index, 2 * i);
-		if (idx <= 257) {
+		if (idx < 258) {
 			strcpy(glyph_name[i], macset[idx]);
 		} else {
 			memcpy(glyph_name[i], names + cname + 1,
@@ -884,6 +886,156 @@ static void otf_gsub(void *otf, void *gsub)
 	}
 }
 
+/* read a cff offset, which has sz bytes */
+static int cff_int(void *tab, int off, int sz)
+{
+	int i;
+	int n = 0;
+	for (i = 0; i < sz; i++)
+		n = n * 256 + U8(tab, off + i);
+	return n;
+}
+
+/* cff dict operand/operator */
+static int cff_op(void *tab, int off, int *val)
+{
+	int b0 = U8(tab, off);
+	int i;
+	if (b0 >= 32 && b0 <= 246) {
+		*val = b0 - 139;
+		return 1;
+	}
+	if (b0 >= 247 && b0 <= 250) {
+		*val = (b0 - 247) * 256 + U8(tab, off + 1) + 108;
+		return 2;
+	}
+	if (b0 >= 251 && b0 <= 254) {
+		*val = -(b0 - 251) * 256 - U8(tab, off + 1) - 108;
+		return 2;
+	}
+	if (b0 == 28) {
+		*val = (U8(tab, off + 1) << 8) | U8(tab, off + 2);
+		return 3;
+	}
+	if (b0 == 29) {
+		*val = (U8(tab, off + 1) << 24) | (U8(tab, off + 2) << 16) |
+			(U8(tab, off + 3) << 8) | U8(tab, off + 4);
+		return 5;
+	}
+	if (b0 == 30) {
+		for (i = 1; i < 32; i++) {
+			int nib = U8(tab, off + i);
+			if ((nib & 0x0f) == 0x0f || (nib & 0xf0) == 0xf0)
+				break;
+		}
+		*val = 0;
+		return i + 1;
+	}
+	*val = b0;
+	return 1;
+}
+
+static int cffidx_cnt(void *idx)
+{
+	return U16(idx, 0);
+}
+
+static void *cffidx_get(void *idx, int i)
+{
+	int cnt = U16(idx, 0);
+	int sz = U8(idx, 2);
+	return idx + 3 + (cnt + 1) * sz - 1 + cff_int(idx, 3 + i * sz, sz);
+}
+
+static int cffidx_len(void *idx, int i)
+{
+	return cffidx_get(idx, i + 1) - cffidx_get(idx, i);
+}
+
+static void *cffidx_end(void *idx)
+{
+	return cffidx_get(idx, cffidx_cnt(idx));
+}
+
+static int cffdict_get(void *dict, int len, int key)
+{
+	int off = 0;
+	int op = 0;
+	int val = 0;
+	/* operators: keys (one or two bytes); operands: values */
+	while (off < len) {
+		val = op;
+		off += cff_op(dict, off, &op);
+		if (op == 12) {			/* two-byte operator */
+			off += cff_op(dict, off, &op);
+			op += 1200;
+		}
+		if (op == key)
+			return val;
+	}
+	return 0;
+}
+
+static void cff_char(void *stridx, int id, char *dst)
+{
+	int len;
+	if (id < 391) {
+		strcpy(dst, stdset[id]);
+		return;
+	}
+	id -= 391;
+	len = cffidx_len(stridx, id);
+	memcpy(dst, cffidx_get(stridx, id), len);
+	dst[len] = '\0';
+}
+
+static void otf_cff(void *otf, void *cff)
+{
+	void *nameidx;		/* name index */
+	void *topidx;		/* top dict index */
+	void *stridx;		/* string idx */
+	void *chridx;		/* charstrings index */
+	void *charset;		/* charset offset of top dict table */
+	int i, j;
+	if (U8(cff, 0) != 1)
+		return;
+	nameidx = cff + U8(cff, 2);
+	topidx = cffidx_end(nameidx);
+	if (cffidx_cnt(nameidx) < 1)
+		return;
+	stridx = cffidx_end(topidx);
+	chridx = cff + cffdict_get(cffidx_get(topidx, 0), cffidx_len(topidx, 0), 17);
+	charset = cff + cffdict_get(cffidx_get(topidx, 0), cffidx_len(topidx, 0), 15);
+	glyph_n = cffidx_cnt(chridx);
+	strcpy(glyph_name[0], ".notdef");
+	if (U8(charset, 0) == 0) {
+		for (i = 0; i < glyph_n; i++)
+			cff_char(stridx, i, glyph_name[i]);
+	}
+	if (U8(charset, 0) == 1) {
+		int g = 1;
+		for (i = 0; g < glyph_n; i++) {
+			int sid = U16(charset, 1 + i * 3);
+			int cnt = U8(charset, 1 + i * 3 + 2);
+			for (j = 0; j <= cnt && g < glyph_n; j++) {
+				cff_char(stridx, sid + j, glyph_name[g]);
+				g++;
+			}
+		}
+	}
+	if (U8(charset, 0) == 2) {
+		int g = 1;
+		for (i = 0; g < glyph_n; i++) {
+			int sid = U16(charset, 1 + i * 4);
+			int cnt = U16(charset, 1 + i * 4 + 2);
+			for (j = 0; j <= cnt && g < glyph_n; j++) {
+				cff_char(stridx, sid + j, glyph_name[g]);
+				g++;
+			}
+		}
+	}
+}
+
 static void *otf_input(int fd)
 {
 	struct sbuf *sb = sbuf_make();
@@ -906,6 +1058,8 @@ int otf_read(void)
 	otf_post(otf_buf, otf_table(otf_buf, "post"));
 	if (otf_table(otf_buf, "glyf"))
 		otf_glyf(otf_buf, otf_table(otf_buf, "glyf"));
+	if (otf_table(otf_buf, "CFF "))
+		otf_cff(otf_buf, otf_table(otf_buf, "CFF "));
 	otf_hmtx(otf_buf, otf_table(otf_buf, "hmtx"));
 	for (i = 0; i < glyph_n; i++) {
 		trfn_char(glyph_name[i], -1,
@@ -1021,4 +1175,86 @@ static char *macset[] = {
 	"onequarter", "threequarters", "franc", "Gbreve", "gbreve",
 	"Idotaccent", "Scedilla", "scedilla", "Cacute", "cacute",
 	"Ccaron", "ccaron", "dcroat",
+};
+
+static char *stdset[] = {
+	".notdef", "space", "exclam", "quotedbl", "numbersign",
+	"dollar", "percent", "ampersand", "quoteright", "parenleft",
+	"parenright", "asterisk", "plus", "comma", "hyphen",
+	"period", "slash", "zero", "one", "two",
+	"three", "four", "five", "six", "seven",
+	"eight", "nine", "colon", "semicolon", "less",
+	"equal", "greater", "question", "at", "A",
+	"B", "C", "D", "E", "F",
+	"G", "H", "I", "J", "K",
+	"L", "M", "N", "O", "P",
+	"Q", "R", "S", "T", "U",
+	"V", "W", "X", "Y", "Z",
+	"bracketleft", "backslash", "bracketright", "asciicircum", "underscore",
+	"quoteleft", "a", "b", "c", "d",
+	"e", "f", "g", "h", "i",
+	"j", "k", "l", "m", "n",
+	"o", "p", "q", "r", "s",
+	"t", "u", "v", "w", "x",
+	"y", "z", "braceleft", "bar", "braceright",
+	"asciitilde", "exclamdown", "cent", "sterling", "fraction",
+	"yen", "florin", "section", "currency", "quotesingle",
+	"quotedblleft", "guillemotleft", "guilsinglleft", "guilsinglright", "fi",
+	"fl", "endash", "dagger", "daggerdbl", "periodcentered",
+	"paragraph", "bullet", "quotesinglbase", "quotedblbase", "quotedblright",
+	"guillemotright", "ellipsis", "perthousand", "questiondown", "grave",
+	"acute", "circumflex", "tilde", "macron", "breve",
+	"dotaccent", "dieresis", "ring", "cedilla", "hungarumlaut",
+	"ogonek", "caron", "emdash", "AE", "ordfeminine",
+	"Lslash", "Oslash", "OE", "ordmasculine", "ae",
+	"dotlessi", "lslash", "oslash", "oe", "germandbls",
+	"onesuperior", "logicalnot", "mu", "trademark", "Eth",
+	"onehalf", "plusminus", "Thorn", "onequarter", "divide",
+	"brokenbar", "degree", "thorn", "threequarters", "twosuperior",
+	"registered", "minus", "eth", "multiply", "threesuperior",
+	"copyright", "Aacute", "Acircumflex", "Adieresis", "Agrave",
+	"Aring", "Atilde", "Ccedilla", "Eacute", "Ecircumflex",
+	"Edieresis", "Egrave", "Iacute", "Icircumflex", "Idieresis",
+	"Igrave", "Ntilde", "Oacute", "Ocircumflex", "Odieresis",
+	"Ograve", "Otilde", "Scaron", "Uacute", "Ucircumflex",
+	"Udieresis", "Ugrave", "Yacute", "Ydieresis", "Zcaron",
+	"aacute", "acircumflex", "adieresis", "agrave", "aring",
+	"atilde", "ccedilla", "eacute", "ecircumflex", "edieresis",
+	"egrave", "iacute", "icircumflex", "idieresis", "igrave",
+	"ntilde", "oacute", "ocircumflex", "odieresis", "ograve",
+	"otilde", "scaron", "uacute", "ucircumflex", "udieresis",
+	"ugrave", "yacute", "ydieresis", "zcaron", "exclamsmall",
+	"Hungarumlautsmall", "dollaroldstyle", "dollarsuperior", "ampersandsmall", "Acutesmall",
+	"parenleftsuperior", "parenrightsuperior", "twodotenleader", "onedotenleader", "zerooldstyle",
+	"oneoldstyle", "twooldstyle", "threeoldstyle", "fouroldstyle", "fiveoldstyle",
+	"sixoldstyle", "sevenoldstyle", "eightoldstyle", "nineoldstyle", "commasuperior",
+	"threequartersemdash", "periodsuperior", "questionsmall", "asuperior", "bsuperior",
+	"centsuperior", "dsuperior", "esuperior", "isuperior", "lsuperior",
+	"msuperior", "nsuperior", "osuperior", "rsuperior", "ssuperior",
+	"tsuperior", "ff", "ffi", "ffl", "parenleftinferior",
+	"parenrightinferior", "Circumflexsmall", "hyphensuperior", "Gravesmall", "Asmall",
+	"Bsmall", "Csmall", "Dsmall", "Esmall", "Fsmall",
+	"Gsmall", "Hsmall", "Ismall", "Jsmall", "Ksmall",
+	"Lsmall", "Msmall", "Nsmall", "Osmall", "Psmall",
+	"Qsmall", "Rsmall", "Ssmall", "Tsmall", "Usmall",
+	"Vsmall", "Wsmall", "Xsmall", "Ysmall", "Zsmall",
+	"colonmonetary", "onefitted", "rupiah", "Tildesmall", "exclamdownsmall",
+	"centoldstyle", "Lslashsmall", "Scaronsmall", "Zcaronsmall", "Dieresissmall",
+	"Brevesmall", "Caronsmall", "Dotaccentsmall", "Macronsmall", "figuredash",
+	"hypheninferior", "Ogoneksmall", "Ringsmall", "Cedillasmall", "questiondownsmall",
+	"oneeighth", "threeeighths", "fiveeighths", "seveneighths", "onethird",
+	"twothirds", "zerosuperior", "foursuperior", "fivesuperior", "sixsuperior",
+	"sevensuperior", "eightsuperior", "ninesuperior", "zeroinferior", "oneinferior",
+	"twoinferior", "threeinferior", "fourinferior", "fiveinferior", "sixinferior",
+	"seveninferior", "eightinferior", "nineinferior", "centinferior", "dollarinferior",
+	"periodinferior", "commainferior", "Agravesmall", "Aacutesmall", "Acircumflexsmall",
+	"Atildesmall", "Adieresissmall", "Aringsmall", "AEsmall", "Ccedillasmall",
+	"Egravesmall", "Eacutesmall", "Ecircumflexsmall", "Edieresissmall", "Igravesmall",
+	"Iacutesmall", "Icircumflexsmall", "Idieresissmall", "Ethsmall", "Ntildesmall",
+	"Ogravesmall", "Oacutesmall", "Ocircumflexsmall", "Otildesmall", "Odieresissmall",
+	"OEsmall", "Oslashsmall", "Ugravesmall", "Uacutesmall", "Ucircumflexsmall",
+	"Udieresissmall", "Yacutesmall", "Thornsmall", "Ydieresissmall", "001.000",
+	"001.001", "001.002", "001.003", "Black", "Bold",
+	"Book", "Light", "Medium", "Regular", "Roman",
+	"Semibold",
 };
