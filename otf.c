@@ -957,7 +957,8 @@ static void *cffidx_end(void *idx)
 	return cffidx_get(idx, cffidx_cnt(idx));
 }
 
-static int cffdict_get(void *dict, int len, int key)
+/* obtain the value of the given key from a cff dict */
+static int cffdict_get(void *dict, int len, int key, int *args)
 {
 	int off = 0;
 	int op = 0;
@@ -965,6 +966,10 @@ static int cffdict_get(void *dict, int len, int key)
 	/* operators: keys (one or two bytes); operands: values */
 	while (off < len) {
 		val = op;
+		if (args) {
+			memmove(args + 1, args + 0, 3 * sizeof(args[0]));
+			args[0] = val;
+		}
 		off += cff_op(dict, off, &op);
 		if (op == 12) {			/* two-byte operator */
 			off += cff_op(dict, off, &op);
@@ -996,6 +1001,7 @@ static void otf_cff(void *otf, void *cff)
 	void *stridx;		/* string idx */
 	void *chridx;		/* charstrings index */
 	void *charset;		/* charset offset of top dict table */
+	int bbox[4] = {0};
 	int i, j;
 	if (U8(cff, 0) != 1)
 		return;
@@ -1004,8 +1010,10 @@ static void otf_cff(void *otf, void *cff)
 	if (cffidx_cnt(nameidx) < 1)
 		return;
 	stridx = cffidx_end(topidx);
-	chridx = cff + cffdict_get(cffidx_get(topidx, 0), cffidx_len(topidx, 0), 17);
-	charset = cff + cffdict_get(cffidx_get(topidx, 0), cffidx_len(topidx, 0), 15);
+	chridx = cff + cffdict_get(cffidx_get(topidx, 0),
+			cffidx_len(topidx, 0), 17, NULL);
+	charset = cff + cffdict_get(cffidx_get(topidx, 0),
+			cffidx_len(topidx, 0), 15, NULL);
 	glyph_n = cffidx_cnt(chridx);
 	strcpy(glyph_name[0], ".notdef");
 	if (U8(charset, 0) == 0) {
@@ -1013,28 +1021,23 @@ static void otf_cff(void *otf, void *cff)
 			cff_char(stridx, U16(charset, 1 + i * 2),
 				glyph_name[i + 1]);
 	}
-	if (U8(charset, 0) == 1) {
+	if (U8(charset, 0) == 1 || U8(charset, 0) == 2) {
 		int g = 1;
+		int sz = U8(charset, 0) == 1 ? 3 : 4;
 		for (i = 0; g < glyph_n; i++) {
-			int sid = U16(charset, 1 + i * 3);
-			int cnt = U8(charset, 1 + i * 3 + 2);
+			int sid = U16(charset, 1 + i * sz);
+			int cnt = cff_int(charset, 1 + i * sz + 2, sz - 2);
 			for (j = 0; j <= cnt && g < glyph_n; j++) {
 				cff_char(stridx, sid + j, glyph_name[g]);
 				g++;
 			}
 		}
 	}
-	if (U8(charset, 0) == 2) {
-		int g = 1;
-		for (i = 0; g < glyph_n; i++) {
-			int sid = U16(charset, 1 + i * 4);
-			int cnt = U16(charset, 1 + i * 4 + 2);
-			for (j = 0; j <= cnt && g < glyph_n; j++) {
-				cff_char(stridx, sid + j, glyph_name[g]);
-				g++;
-			}
-		}
-	}
+	/* use font bbox for all glyphs */
+	cffdict_get(cffidx_get(topidx, 0), cffidx_len(topidx, 0), 5, bbox);
+	for (i = 1; i < glyph_n; i++)
+		for (j = 0; j < 4; j++)
+			glyph_bbox[i][j] = bbox[3 - j];
 }
 
 static void *otf_input(int fd)
