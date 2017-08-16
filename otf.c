@@ -1010,7 +1010,8 @@ static void otf_cff(void *otf, void *cff)
 	strcpy(glyph_name[0], ".notdef");
 	if (U8(charset, 0) == 0) {
 		for (i = 0; i < glyph_n; i++)
-			cff_char(stridx, i, glyph_name[i]);
+			cff_char(stridx, U16(charset, 1 + i * 2),
+				glyph_name[i + 1]);
 	}
 	if (U8(charset, 0) == 1) {
 		int g = 1;
