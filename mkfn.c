@@ -1,7 +1,7 @@
 /*
  * NEATMKFN - GENERATE NEATROFF FONT DESCRIPTIONS
  *
- * Copyright (C) 2012-2016 Ali Gholami Rudi <ali at rudi dot ir>
+ * Copyright (C) 2012-2018 Ali Gholami Rudi <ali at rudi dot ir>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -82,7 +82,7 @@ int trfn_script(char *script, int nscripts)
 int trfn_lang(char *lang, int nlangs)
 {
 	if (!trfn_langs)
-		return nlangs == 1 || !lang;
+		return 1;
 	if (!lang)
 		lang = "";
 	if (!strcmp("help", trfn_langs))
