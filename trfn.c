@@ -28,6 +28,7 @@ static char trfn_ligs[8192];	/* font ligatures */
 static char trfn_ligs2[8192];	/* font ligatures, whose length is two */
 static char trfn_trname[256];	/* font troff name */
 static char trfn_psname[256];	/* font ps name */
+static char trfn_path[4096];	/* font path */
 /* character type */
 static int trfn_asc;		/* minimum height of glyphs with ascender */
 static int trfn_desc;		/* minimum depth of glyphs with descender */
@@ -316,12 +317,20 @@ void trfn_psfont(char *name)
 		strcpy(trfn_psname, name);
 }
 
+void trfn_pspath(char *name)
+{
+	if (!trfn_path[0])
+		strcpy(trfn_path, name);
+}
+
 void trfn_print(void)
 {
 	if (trfn_trname[0])
 		printf("name %s\n", trfn_trname);
 	if (trfn_psname[0])
 		printf("fontname %s\n", trfn_psname);
+	if (trfn_path[0])
+		printf("fontpath %s\n", trfn_path);
 	printf("spacewidth %d\n", trfn_swid);
 	if (!trfn_noligs)
 		printf("ligatures %s%s0\n", trfn_ligs, trfn_ligs2);

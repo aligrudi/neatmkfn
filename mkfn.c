@@ -120,6 +120,7 @@ static char *usage =
 	"  -s      \tspecial font\n"
 	"  -p name \toverride font postscript name\n"
 	"  -t name \tset font troff name\n"
+	"  -f path \tset font path\n"
 	"  -r res  \tset device resolution (720)\n"
 	"  -k kmin \tspecify the minimum amount of kerning (0)\n"
 	"  -b      \tinclude glyph bounding boxes\n"
@@ -147,6 +148,9 @@ int main(int argc, char *argv[])
 			break;
 		case 'b':
 			bbox = 1;
+			break;
+		case 'f':
+			trfn_pspath(argv[i][2] ? argv[i] + 2 : argv[++i]);
 			break;
 		case 'k':
 			kmin = atoi(argv[i][2] ? argv[i] + 2 : argv[++i]);
