@@ -49,8 +49,8 @@ static int owid(int w)
 
 static int uwid(int w)
 {
-	int d = 7200 / res;
-	return (w < 0 ? owid(w) - d / 2 : owid(w) + d / 2) / d;
+	int d = 72000 / res;
+	return (w < 0 ? owid(w) - d / 20 : owid(w) + d / 20) * 10 / d;
 }
 
 /* weather the script is right-to-left */

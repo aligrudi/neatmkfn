@@ -8,7 +8,7 @@
 #include "trfn_agl.h"
 #include "trfn_ch.h"
 
-#define WX(w)		(((w) < 0 ? (w) - trfn_div / 2 : (w) + trfn_div / 2) / trfn_div)
+#define WX(w)		(((w) < 0 ? (w) - trfn_div / 20 : (w) + trfn_div / 20) * (long) 10 / trfn_div)
 #define LEN(a)		((sizeof(a) / sizeof((a)[0])))
 #define HEXDIGS		"0123456789ABCDEF"
 #define NCHAR		8	/* number of characters per glyph */
@@ -17,7 +17,7 @@
 
 static struct sbuf *sbuf_char;	/* characters */
 static struct sbuf *sbuf_kern;	/* kerning pairs */
-static int trfn_div;		/* divisor of widths */
+static int trfn_div;		/* divisor of widths x 10 */
 static int trfn_swid;		/* space width */
 static int trfn_special;	/* special flag */
 static int trfn_kmin;		/* minimum kerning value */
@@ -343,7 +343,7 @@ void trfn_print(void)
 void trfn_init(int res, int spc, int kmin, int bbox, int ligs, int pos)
 {
 	int i;
-	trfn_div = 7200 / res;
+	trfn_div = 72000 / res;
 	trfn_special = spc;
 	trfn_kmin = kmin;
 	trfn_bbox = bbox;
