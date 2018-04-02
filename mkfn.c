@@ -116,7 +116,7 @@ static char *usage =
 	"Usage: mktrfn [options] <input >output\n"
 	"Options:\n"
 	"  -a      \tread an AFM file (default)\n"
-	"  -o      \tread an OTF file\n"
+	"  -o      \tread a TTF or an OTF file\n"
 	"  -s      \tspecial font\n"
 	"  -p name \toverride font postscript name\n"
 	"  -t name \tset font troff name\n"
