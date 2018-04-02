@@ -22,7 +22,10 @@ echo "unitwidth 10" >>$TP/DESC
 afmconv()
 {
 	echo $1
-	cat $2 | ./mkfn -a -b -r$RES -t "$1" -f "$2" $3 $4 $5 $6 $7 | \
+	T1="`dirname $2`/`basename $2 .afm`.t1"
+	test -f "$T1" || T1="`dirname $2`/`basename $2 .afm`.pfa"
+	test -f "$T1" || T1="`dirname $2`/`basename $2 .afm`.pfb"
+	cat $2 | ./mkfn -a -b -r$RES -t$1 -f "$T1" $3 $4 $5 $6 $7 | \
 		sed "/^ligatures /s/ $LIGIGN//g" >$TP/$1
 }
 
@@ -30,7 +33,7 @@ afmconv()
 ttfconv()
 {
 	echo $1
-	cat $2 | ./mkfn -b -l -o -r$RES $SCR -t $1 -f "$2" $3 $4 $5 $6 $7 | \
+	cat $2 | ./mkfn -b -l -o -r$RES $SCR -t$1 -f "$2" $3 $4 $5 $6 $7 | \
 		sed "/^ligatures /s/ $LIGIGN//g" >$TP/$1
 }
 
