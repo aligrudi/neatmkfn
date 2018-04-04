@@ -286,7 +286,7 @@ void trfn_char(char *psname, int n, int u, int wid,
 		trfn_swid = WX(wid);
 	/* printing troff charset */
 	if (strchr(uc, ' '))	/* space not allowed in char names */
-		return;
+		strcpy(uc, "---");
 	if (strcmp("---", uc))
 		trfn_lig(uc);
 	sbuf_printf(sbuf_char, "char %s\t%d", uc, WX(wid));
