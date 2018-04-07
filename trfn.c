@@ -285,8 +285,8 @@ void trfn_char(char *psname, int n, int u, int wid,
 	if (!trfn_swid && (!strcmp(" ", uc) || !strcmp(" ", uc)))
 		trfn_swid = WX(wid);
 	/* printing troff charset */
-	if (strchr(uc, ' '))	/* space not allowed in char names */
-		strcpy(uc, "---");
+	if (isspace((unsigned char) uc[0]) || strchr(uc, ' '))
+		strcpy(uc, "---");	/* space not allowed in char names */
 	if (strcmp("---", uc))
 		trfn_lig(uc);
 	sbuf_printf(sbuf_char, "char %s\t%d", uc, WX(wid));
