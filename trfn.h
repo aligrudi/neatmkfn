@@ -8,3 +8,4 @@ void trfn_kern(char *c1, char *c2, int x);
 int trfn_script(char *script, int nscripts);
 int trfn_lang(char *lang, int nlangs);
 int trfn_featrank(char *scrp, char *feat);
+void trfn_pspath(char *name);
