@@ -1,5 +1,5 @@
 #!/bin/sh
-# Generate a neatroff output device
+# Generate a Neatroff output device
 
 FP="/path/to/gs/fonts"		# ghostscript fonts directory; should be in GS_FONTPATH
 TP="/path/to/font/devutf"	# output device directory
@@ -50,12 +50,11 @@ otfconv()
 # stdfont troff_name gs_font urw_font extra_mktrfn_options
 stdfont()
 {
-	if test -f $2
-	then
-		afmconv $1 "$2" $4 $5 $6 $7 $8 $9
-	else
-		afmconv $1 "$3" $4 $5 $6 $7 $8 $9
-	fi
+	FN="$2"
+	test -f "$FN" || FN="$3"
+	test -f "$FN" || echo "$0: Font <$2> not found!" >&2
+	test -f "$FN" || exit 1
+	afmconv $1 "$FN" $4 $5 $6 $7 $8 $9
 }
 
 # The standard fonts; ghostscriptfonts or urw-core35
