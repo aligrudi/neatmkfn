@@ -10,7 +10,7 @@
 #define MAX(a, b)	((a) < (b) ? (b) : (a))
 #define LEN(a)		(sizeof(a) / sizeof((a)[0]))
 
-#define NGLYPHS		(1 << 14)
+#define NGLYPHS		(1 << 16)
 #define NLOOKUPS	(1 << 12)
 #define GNLEN		(64)
 #define NGRPS		2048
@@ -38,6 +38,7 @@ static int upm;			/* units per em */
 static int res;			/* device resolution */
 static int kmin;		/* minimum kerning value */
 static int warn;		/* report unsupported tables */
+static int noname;		/* post table version 3.0; no PS names*/
 
 static char *macset[];
 static char *stdset[];
@@ -160,6 +161,8 @@ static void otf_post(void *otf, void *post)
 	int i;
 	post2 = post + 32;
 	glyph_n = U16(post2, 0);
+	if (U32(post, 0) == 0x30000)
+		noname = 1;
 	if (U32(post, 0) != 0x20000)
 		return;
 	index = post2 + 2;
@@ -235,26 +238,29 @@ static void otf_kern(void *otf, void *kern)
 	}
 }
 
-static int coverage(void *cov, int *out)
+static int *coverage(void *cov, int *ncov)
 {
 	int fmt = U16(cov, 0);
 	int n = U16(cov, 2);
 	int beg, end;
-	int ncov = 0;
 	int i, j;
+	int *out = malloc(glyph_n * sizeof(*out));
+	int cnt = 0;
 	if (fmt == 1) {
 		for (i = 0; i < n; i++)
-			out[ncov++] = U16(cov, 4 + 2 * i);
+			out[cnt++] = U16(cov, 4 + 2 * i);
 	}
 	if (fmt == 2) {
 		for (i = 0; i < n; i++) {
 			beg = U16(cov, 4 + 6 * i);
 			end = U16(cov, 4 + 6 * i + 2);
 			for (j = beg; j <= end; j++)
-				out[ncov++] = j;
+				out[cnt++] = j;
 		}
 	}
-	return ncov;
+	if (ncov)
+		*ncov = cnt;
+	return out;
 }
 
 static int classdef(void *tab, int *gl, int *cls)
@@ -294,14 +300,17 @@ static int ggrp_make(int *src, int n);
 
 static int ggrp_class(int *src, int *cls, int nsrc, int id)
 {
-	int g[NGLYPHS];
+	int *g = malloc(nsrc * sizeof(g[0]));
 	int n = 0;
 	int i;
+	int grp;
 	for (i = 0; i < nsrc; i++)
 		if (cls[i] == id)
 			g[n++] = src[i];
 	qsort(g, n, sizeof(g[0]), (void *) intcmp);
-	return ggrp_make(g, n);
+	grp = ggrp_make(g, n);
+	free(g);
+	return grp;
 }
 
 static int ggrp_coverage(int *g, int n)
@@ -354,11 +363,11 @@ static void otf_gpostype1(void *otf, void *sub, char *feat)
 {
 	int fmt = U16(sub, 0);
 	int vfmt = U16(sub, 4);
-	int cov[NGLYPHS];
+	int *cov;
 	int ncov, nvals;
 	int vlen = valuerecord_len(vfmt);
 	int i;
-	ncov = coverage(sub + U16(sub, 2), cov);
+	cov = coverage(sub + U16(sub, 2), &ncov);
 	if (fmt == 1) {
 		for (i = 0; i < ncov; i++) {
 			if (valuerecord_small(vfmt, sub + 6))
@@ -378,6 +387,7 @@ static void otf_gpostype1(void *otf, void *sub, char *feat)
 			printf("\n");
 		}
 	}
+	free(cov);
 }
 
 /* pair adjustment positioning */
@@ -391,9 +401,8 @@ static void otf_gpostype2(void *otf, void *sub, char *feat)
 	int i, j;
 	vrlen = valuerecord_len(vfmt1) + valuerecord_len(vfmt2);
 	if (fmt == 1) {
-		int cov[NGLYPHS];
 		int nc1 = U16(sub, 8);
-		coverage(sub + U16(sub, 2), cov);
+		int *cov = coverage(sub + U16(sub, 2), NULL);
 		for (i = 0; i < nc1; i++) {
 			void *c2 = sub + U16(sub, 10 + 2 * i);
 			int nc2 = U16(c2, 0);
@@ -412,11 +421,12 @@ static void otf_gpostype2(void *otf, void *sub, char *feat)
 				printf("\n");
 			}
 		}
+		free(cov);
 	}
 	if (fmt == 2) {
-		int gl1[NGLYPHS], gl2[NGLYPHS];
-		int cls1[NGLYPHS], cls2[NGLYPHS];
-		int grp1[NGLYPHS], grp2[NGLYPHS];
+		static int gl1[NGLYPHS], gl2[NGLYPHS];
+		static int cls1[NGLYPHS], cls2[NGLYPHS];
+		static int grp1[NGLYPHS], grp2[NGLYPHS];
 		int ngl1 = classdef(sub + U16(sub, 8), gl1, cls1);
 		int ngl2 = classdef(sub + U16(sub, 10), gl2, cls2);
 		int ncls1 = U16(sub, 12);
@@ -447,17 +457,17 @@ static void otf_gpostype2(void *otf, void *sub, char *feat)
 static void otf_gpostype3(void *otf, void *sub, char *feat)
 {
 	int fmt = U16(sub, 0);
-	int cov[NGLYPHS];
-	int icov[NGLYPHS];
-	int ocov[NGLYPHS];
+	int *cov, *icov, *ocov;
 	int i, n;
 	int icnt = 0;
 	int ocnt = 0;
 	int igrp, ogrp;
-	coverage(sub + U16(sub, 2), cov);
 	if (fmt != 1)
 		return;
+	cov = coverage(sub + U16(sub, 2), NULL);
 	n = U16(sub, 4);
+	icov = malloc(n * sizeof(icov[0]));
+	ocov = malloc(n * sizeof(ocov[0]));
 	for (i = 0; i < n; i++)
 		if (U16(sub, 6 + 4 * i))
 			ocov[ocnt++] = cov[i];
@@ -466,6 +476,8 @@ static void otf_gpostype3(void *otf, void *sub, char *feat)
 			icov[icnt++] = cov[i];
 	igrp = ggrp_coverage(icov, icnt);
 	ogrp = ggrp_coverage(ocov, ocnt);
+	free(icov);
+	free(ocov);
 	for (i = 0; i < n; i++) {
 		int prev = U16(sub, 6 + 4 * i);
 		int next = U16(sub, 6 + 4 * i + 2);
@@ -490,14 +502,15 @@ static void otf_gpostype3(void *otf, void *sub, char *feat)
 				0, 0, dx, dy);
 		}
 	}
+	free(cov);
 }
 
 /* mark-to-base attachment positioning */
 static void otf_gpostype4(void *otf, void *sub, char *feat)
 {
 	int fmt = U16(sub, 0);
-	int mcov[NGLYPHS];	/* mark coverage */
-	int bcov[NGLYPHS];	/* base coverage */
+	int *mcov;		/* mark coverage */
+	int *bcov;		/* base coverage */
 	int cgrp[1024];		/* glyph groups assigned to classes */
 	int bgrp;		/* the group assigned to base glyphs */
 	int mcnt;		/* mark coverage size */
@@ -508,19 +521,20 @@ static void otf_gpostype4(void *otf, void *sub, char *feat)
 	int i, j;
 	if (fmt != 1)
 		return;
-	mcnt = coverage(sub + U16(sub, 2), mcov);
-	bcnt = coverage(sub + U16(sub, 4), bcov);
+	mcov = coverage(sub + U16(sub, 2), &mcnt);
+	bcov = coverage(sub + U16(sub, 4), &bcnt);
 	ccnt = U16(sub, 6);
 	marks = sub + U16(sub, 8);
 	bases = sub + U16(sub, 10);
 	bgrp = ggrp_coverage(bcov, bcnt);
 	for (i = 0; i < ccnt; i++) {
-		int grp[NGLYPHS];
+		int *grp = malloc(mcnt * sizeof(grp[0]));
 		int cnt = 0;
 		for (j = 0; j < mcnt; j++)
 			if (U16(marks, 2 + 4 * j) == i)
 				grp[cnt++] = mcov[j];
 		cgrp[i] = ggrp_coverage(grp, cnt);
+		free(grp);
 	}
 	for (i = 0; i < mcnt; i++) {
 		void *mark = marks + U16(marks, 2 + 4 * i + 2);	/* mark anchor */
@@ -546,6 +560,8 @@ static void otf_gpostype4(void *otf, void *sub, char *feat)
 				feat, glyph_name[bcov[i]], cgrp[j], dx, dy, 0, 0);
 		}
 	}
+	free(mcov);
+	free(bcov);
 }
 
 /* gsub context */
@@ -587,13 +603,15 @@ static void gctx_lookahead(struct gctx *ctx, int patlen)
 /* single substitution */
 static void otf_gsubtype1(void *otf, void *sub, char *feat, struct gctx *ctx)
 {
-	int cov[NGLYPHS];
+	int *cov;
 	int fmt = U16(sub, 0);
 	int ncov;
 	int i;
-	ncov = coverage(sub + U16(sub, 2), cov);
+	cov = coverage(sub + U16(sub, 2), &ncov);
 	if (fmt == 1) {
 		for (i = 0; i < ncov; i++) {
+			if (cov[i] + S16(sub, 4) >= glyph_n)
+				continue;
 			printf("gsub %s %d", feat, 2 + gctx_len(ctx, 1));
 			gctx_backtrack(ctx);
 			printf(" -%s +%s", glyph_name[cov[i]],
@@ -613,17 +631,18 @@ static void otf_gsubtype1(void *otf, void *sub, char *feat, struct gctx *ctx)
 			printf("\n");
 		}
 	}
+	free(cov);
 }
 
 /* alternate substitution */
 static void otf_gsubtype3(void *otf, void *sub, char *feat, struct gctx *ctx)
 {
-	int cov[NGLYPHS];
+	int *cov;
 	int fmt = U16(sub, 0);
 	int n, i, j;
 	if (fmt != 1)
 		return;
-	coverage(sub + U16(sub, 2), cov);
+	cov = coverage(sub + U16(sub, 2), NULL);
 	n = U16(sub, 4);
 	for (i = 0; i < n; i++) {
 		void *alt = sub + U16(sub, 6 + 2 * i);
@@ -637,17 +656,18 @@ static void otf_gsubtype3(void *otf, void *sub, char *feat, struct gctx *ctx)
 			printf("\n");
 		}
 	}
+	free(cov);
 }
 
 /* ligature substitution */
 static void otf_gsubtype4(void *otf, void *sub, char *feat, struct gctx *ctx)
 {
 	int fmt = U16(sub, 0);
-	int cov[NGLYPHS];
+	int *cov;
 	int n, i, j, k;
 	if (fmt != 1)
 		return;
-	coverage(sub + U16(sub, 2), cov);
+	cov = coverage(sub + U16(sub, 2), NULL);
 	n = U16(sub, 4);
 	for (i = 0; i < n; i++) {
 		void *set = sub + U16(sub, 6 + 2 * i);
@@ -665,6 +685,7 @@ static void otf_gsubtype4(void *otf, void *sub, char *feat, struct gctx *ctx)
 			printf("\n");
 		}
 	}
+	free(cov);
 }
 
 /* chaining contextual substitution */
@@ -673,7 +694,7 @@ static void otf_gsubtype6(void *otf, void *sub, char *feat, void *gsub)
 	struct gctx ctx = {{0}};
 	void *lookups = gsub + U16(gsub, 8);
 	int fmt = U16(sub, 0);
-	int cov[NGLYPHS];
+	int *cov;
 	int i, j, nsub, ncov;
 	int off = 2;
 	if (fmt != 3) {
@@ -682,20 +703,23 @@ static void otf_gsubtype6(void *otf, void *sub, char *feat, void *gsub)
 	}
 	ctx.bn = U16(sub, off);
 	for (i = 0; i < ctx.bn; i++) {
-		ncov = coverage(sub + U16(sub, off + 2 + 2 * i), cov);
+		cov = coverage(sub + U16(sub, off + 2 + 2 * i), &ncov);
 		ctx.bgrp[i] = ggrp_coverage(cov, ncov);
+		free(cov);
 	}
 	off += 2 + 2 * ctx.bn;
 	ctx.in = U16(sub, off);
 	for (i = 0; i < ctx.in; i++) {
-		ncov = coverage(sub + U16(sub, off + 2 + 2 * i), cov);
+		cov = coverage(sub + U16(sub, off + 2 + 2 * i), &ncov);
 		ctx.igrp[i] = ggrp_coverage(cov, ncov);
+		free(cov);
 	}
 	off += 2 + 2 * ctx.in;
 	ctx.ln = U16(sub, off);
 	for (i = 0; i < ctx.ln; i ++) {
-		ncov = coverage(sub + U16(sub, off + 2 + 2 * i), cov);
+		cov = coverage(sub + U16(sub, off + 2 + 2 * i), &ncov);
 		ctx.lgrp[i] = ggrp_coverage(cov, ncov);
+		free(cov);
 	}
 	off += 2 + 2 * ctx.ln;
 	nsub = U16(sub, off);	/* nsub > 1 is not supported */
@@ -1020,7 +1044,7 @@ static void otf_cff(void *otf, void *cff)
 	void *topidx;		/* top dict index */
 	void *stridx;		/* string idx */
 	void *chridx;		/* charstrings index */
-	void *charset;		/* charset offset of top dict table */
+	void *charset;		/* charset offset */
 	int bbox[4] = {0};
 	int i, j;
 	if (U8(cff, 0) != 1)
@@ -1036,12 +1060,12 @@ static void otf_cff(void *otf, void *cff)
 			cffidx_len(topidx, 0), 15, NULL);
 	glyph_n = cffidx_cnt(chridx);
 	strcpy(glyph_name[0], ".notdef");
-	if (U8(charset, 0) == 0) {
+	if (!noname && U8(charset, 0) == 0) {
 		for (i = 0; i < glyph_n; i++)
 			cff_char(stridx, U16(charset, 1 + i * 2),
 				glyph_name[i + 1]);
 	}
-	if (U8(charset, 0) == 1 || U8(charset, 0) == 2) {
+	if (!noname && (U8(charset, 0) == 1 || U8(charset, 0) == 2)) {
 		int g = 1;
 		int sz = U8(charset, 0) == 1 ? 3 : 4;
 		for (i = 0; g < glyph_n; i++) {
@@ -1084,6 +1108,10 @@ int otf_read(void)
 		otf_glyf(otf_buf, otf_table(otf_buf, "glyf"));
 	if (otf_table(otf_buf, "CFF "))
 		otf_cff(otf_buf, otf_table(otf_buf, "CFF "));
+	if (noname) {
+		for (i = 1; i < glyph_n; i++)
+			sprintf(glyph_name[i], "uni%04X", glyph_code[i]);
+	}
 	otf_hmtx(otf_buf, otf_table(otf_buf, "hmtx"));
 	for (i = 0; i < glyph_n; i++) {
 		trfn_char(glyph_name[i], -1,
