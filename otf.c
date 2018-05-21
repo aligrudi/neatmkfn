@@ -160,11 +160,11 @@ static void otf_post(void *otf, void *post)
 	int cname = 0;
 	int i;
 	post2 = post + 32;
-	glyph_n = U16(post2, 0);
 	if (U32(post, 0) == 0x30000)
 		noname = 1;
 	if (U32(post, 0) != 0x20000)
 		return;
+	glyph_n = U16(post2, 0);
 	index = post2 + 2;
 	names = index + 2 * glyph_n;
 	for (i = 0; i < glyph_n; i++) {
@@ -190,6 +190,8 @@ static void otf_glyf(void *otf, void *glyf)
 	int n = U16(maxp, 4);
 	int fmt = U16(head, 50);
 	int i, j;
+	if (!glyph_n)
+		glyph_n = n;
 	for (i = 0; i < n; i++) {
 		if (fmt) {
 			gdat = glyf + U32(loca, 4 * i);
@@ -1060,6 +1062,7 @@ static void otf_cff(void *otf, void *cff)
 			cffidx_len(topidx, 0), 15, NULL);
 	glyph_n = cffidx_cnt(chridx);
 	strcpy(glyph_name[0], ".notdef");
+	/* read charset: glyph to character name */
 	if (!noname && U8(charset, 0) == 0) {
 		for (i = 0; i < glyph_n; i++)
 			cff_char(stridx, U16(charset, 1 + i * 2),
@@ -1109,8 +1112,12 @@ int otf_read(void)
 	if (otf_table(otf_buf, "CFF "))
 		otf_cff(otf_buf, otf_table(otf_buf, "CFF "));
 	if (noname) {
-		for (i = 1; i < glyph_n; i++)
-			sprintf(glyph_name[i], "uni%04X", glyph_code[i]);
+		for (i = 0; i < glyph_n; i++) {
+			if (glyph_code[i])
+				sprintf(glyph_name[i], "uni%04X", glyph_code[i]);
+			else
+				sprintf(glyph_name[i], "gl%05X", i);
+		}
 	}
 	otf_hmtx(otf_buf, otf_table(otf_buf, "hmtx"));
 	for (i = 0; i < glyph_n; i++) {
