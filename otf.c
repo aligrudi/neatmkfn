@@ -1035,10 +1035,8 @@ static void cff_char(void *stridx, int id, char *dst)
 	len = cffidx_len(stridx, id);
 	if (len >= GNLEN)
 		len = GNLEN - 1;
-	if (id < cffidx_cnt(stridx)) {
-		memcpy(dst, cffidx_get(stridx, id), len);
-		dst[len] = '\0';
-	}
+	memcpy(dst, cffidx_get(stridx, id), len);
+	dst[len] = '\0';
 }
 
 static void otf_cff(void *otf, void *cff)
@@ -1048,6 +1046,7 @@ static void otf_cff(void *otf, void *cff)
 	void *stridx;		/* string idx */
 	void *chridx;		/* charstrings index */
 	void *charset;		/* charset offset */
+	int badcff;		/* invalid CFF SIDs */
 	int bbox[4] = {0};
 	int i, j;
 	if (U8(cff, 0) != 1)
@@ -1062,14 +1061,15 @@ static void otf_cff(void *otf, void *cff)
 	charset = cff + cffdict_get(cffidx_get(topidx, 0),
 			cffidx_len(topidx, 0), 15, NULL);
 	glyph_n = cffidx_cnt(chridx);
+	badcff = cffidx_cnt(chridx) - 391 > cffidx_cnt(stridx);
 	strcpy(glyph_name[0], ".notdef");
 	/* read charset: glyph to character name */
-	if (U8(charset, 0) == 0) {
+	if (!badcff && U8(charset, 0) == 0) {
 		for (i = 0; i < glyph_n; i++)
 			cff_char(stridx, U16(charset, 1 + i * 2),
 				glyph_name[i + 1]);
 	}
-	if (U8(charset, 0) == 1 || U8(charset, 0) == 2) {
+	if (!badcff && (U8(charset, 0) == 1 || U8(charset, 0) == 2)) {
 		int g = 1;
 		int sz = U8(charset, 0) == 1 ? 3 : 4;
 		for (i = 0; g < glyph_n; i++) {
