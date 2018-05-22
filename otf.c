@@ -38,7 +38,7 @@ static int upm;			/* units per em */
 static int res;			/* device resolution */
 static int kmin;		/* minimum kerning value */
 static int warn;		/* report unsupported tables */
-static int noname;		/* post table version 3.0; no PS names*/
+static int noname;		/* post table version 3.0; no PS names */
 
 static char *macset[];
 static char *stdset[];
@@ -159,11 +159,11 @@ static void otf_post(void *otf, void *post)
 	void *names;			/* glyph names */
 	int cname = 0;
 	int i;
-	post2 = post + 32;
 	if (U32(post, 0) == 0x30000)
 		noname = 1;
 	if (U32(post, 0) != 0x20000)
 		return;
+	post2 = post + 32;
 	glyph_n = U16(post2, 0);
 	index = post2 + 2;
 	names = index + 2 * glyph_n;
@@ -1111,8 +1111,8 @@ int otf_read(void)
 		otf_glyf(otf_buf, otf_table(otf_buf, "glyf"));
 	if (otf_table(otf_buf, "CFF "))
 		otf_cff(otf_buf, otf_table(otf_buf, "CFF "));
-	if (noname) {
-		for (i = 0; i < glyph_n; i++) {
+	for (i = 0; i < glyph_n; i++) {
+		if (!glyph_name[i][0]) {
 			if (glyph_code[i])
 				sprintf(glyph_name[i], "uni%04X", glyph_code[i]);
 			else
