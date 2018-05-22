@@ -38,7 +38,6 @@ static int upm;			/* units per em */
 static int res;			/* device resolution */
 static int kmin;		/* minimum kerning value */
 static int warn;		/* report unsupported tables */
-static int noname;		/* post table version 3.0; no PS names */
 
 static char *macset[];
 static char *stdset[];
@@ -159,8 +158,6 @@ static void otf_post(void *otf, void *post)
 	void *names;			/* glyph names */
 	int cname = 0;
 	int i;
-	if (U32(post, 0) == 0x30000)
-		noname = 1;
 	if (U32(post, 0) != 0x20000)
 		return;
 	post2 = post + 32;
@@ -1036,8 +1033,12 @@ static void cff_char(void *stridx, int id, char *dst)
 	}
 	id -= 391;
 	len = cffidx_len(stridx, id);
-	memcpy(dst, cffidx_get(stridx, id), len);
-	dst[len] = '\0';
+	if (len >= GNLEN)
+		len = GNLEN - 1;
+	if (id < cffidx_cnt(stridx)) {
+		memcpy(dst, cffidx_get(stridx, id), len);
+		dst[len] = '\0';
+	}
 }
 
 static void otf_cff(void *otf, void *cff)
@@ -1063,12 +1064,12 @@ static void otf_cff(void *otf, void *cff)
 	glyph_n = cffidx_cnt(chridx);
 	strcpy(glyph_name[0], ".notdef");
 	/* read charset: glyph to character name */
-	if (!noname && U8(charset, 0) == 0) {
+	if (U8(charset, 0) == 0) {
 		for (i = 0; i < glyph_n; i++)
 			cff_char(stridx, U16(charset, 1 + i * 2),
 				glyph_name[i + 1]);
 	}
-	if (!noname && (U8(charset, 0) == 1 || U8(charset, 0) == 2)) {
+	if (U8(charset, 0) == 1 || U8(charset, 0) == 2) {
 		int g = 1;
 		int sz = U8(charset, 0) == 1 ? 3 : 4;
 		for (i = 0; g < glyph_n; i++) {
