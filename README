@@ -1,11 +1,13 @@
-MKTRFN
-======
+NEATMKFN
+========
 
-The mktrfn program creates troff font description files for neatroff
-from AFM (Adobe Font Metrics) and TTF (TrueType Font) files.  OpenType
-fonts can be first converted to TTF (see ./gen.sh, for instance).  See
-the output of "mktrfn -h" for the available options.
+The Neatmkfn program creates Neatroff font description files from AFM
+(Adobe Font Metrics), TrueType, and OpenType fonts.  See the output of
+"mkfn -h" for the available options.  Note that for OpenType fonts,
+Neatmkfn cannot obtain glyph bounding boxes accurately.  Therefore, if
+you plan to use a font in Neateqn blocks, convert the font to TrueType
+and generate the font description from that.
 
-The included ./gen.sh script invokes mktrfn to create a complete
-output device for neatroff.  Change the variables in that file before
-running it.
+The included ./gen.sh script invokes mkfn to create a complete output
+device for neatroff.  Change the variables in that file before running
+it.
