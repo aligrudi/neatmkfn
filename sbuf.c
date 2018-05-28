@@ -1,4 +1,4 @@
-/* variable length string buffer */
+/* Variable Length String Buffer */
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>

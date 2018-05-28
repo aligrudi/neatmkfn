@@ -1,3 +1,4 @@
+/* OpenType and TrueType fonts */
 #include <arpa/inet.h>
 #include <errno.h>
 #include <stdio.h>
@@ -53,7 +54,7 @@ static int uwid(int w)
 	return (w < 0 ? owid(w) - d / 20 : owid(w) + d / 20) * 10 / d;
 }
 
-/* weather the script is right-to-left */
+/* whether the script is right-to-left */
 static int otf_r2l(char *feat)
 {
 	char *scrp = strchr(feat, ':') + 1;
