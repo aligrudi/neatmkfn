@@ -1047,7 +1047,6 @@ static void otf_cff(void *otf, void *cff)
 	void *chridx;		/* charstrings index */
 	void *charset;		/* charset offset */
 	int badcff;		/* invalid CFF SIDs */
-	int bbox[4] = {0};
 	int i, j;
 	if (U8(cff, 0) != 1)
 		return;
@@ -1081,11 +1080,6 @@ static void otf_cff(void *otf, void *cff)
 			}
 		}
 	}
-	/* use font bbox for all glyphs */
-	cffdict_get(cffidx_get(topidx, 0), cffidx_len(topidx, 0), 5, bbox);
-	for (i = 1; i < glyph_n; i++)
-		for (j = 0; j < 4; j++)
-			glyph_bbox[i][j] = bbox[3 - j];
 }
 
 static void *otf_input(int fd)
