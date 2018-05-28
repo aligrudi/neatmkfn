@@ -52,7 +52,7 @@ stdfont()
 {
 	FN="$2"
 	test -f "$FN" || FN="$3"
-	test -f "$FN" || echo "$0: Font <$2> not found!" >&2
+	test -f "$FN" || echo "$0: Font <$3> not found!" >&2
 	test -f "$FN" || exit 1
 	afmconv $1 "$FN" $4 $5 $6 $7 $8 $9
 }
@@ -69,13 +69,13 @@ stdfont AI	$FP/a010033l.afm $FP/URWGothic-BookOblique.afm	-pAvantGarde-BookObliq
 stdfont AB	$FP/a010015l.afm $FP/URWGothic-Demi.afm		-pAvantGarde-Demi
 stdfont AX	$FP/a010035l.afm $FP/URWGothic-DemiOblique.afm	-pAvantGarde-DemiOblique
 stdfont HR	$FP/n019003l.afm $FP/NimbusSans-Regular.afm	-pHelvetica
-stdfont HI	$FP/n019023l.afm $FP/NimbusSans-Oblique.afm	-pHelvetica-Oblique
+stdfont HI	$FP/n019023l.afm $FP/NimbusSans-Italic.afm	-pHelvetica-Oblique
 stdfont HB	$FP/n019004l.afm $FP/NimbusSans-Bold.afm	-pHelvetica-Bold
-stdfont HX	$FP/n019024l.afm $FP/NimbusSans-BoldOblique.afm	-pHelvetica-BoldOblique
+stdfont HX	$FP/n019024l.afm $FP/NimbusSans-BoldItalic.afm	-pHelvetica-BoldOblique
 stdfont Hr	$FP/n019043l.afm $FP/NimbusSansNarrow-Regular.afm	-pHelvetica-Narrow
 stdfont Hi	$FP/n019063l.afm $FP/NimbusSansNarrow-Oblique.afm	-pHelvetica-Narrow-Oblique
 stdfont Hb	$FP/n019044l.afm $FP/NimbusSansNarrow-Bold.afm	-pHelvetica-Narrow-Bold
-stdfont Hx	$FP/n019024l.afm $FP/NimbusSansNarrow-BdOblique.afm	-pHelvetica-Narrow-BoldOblique
+stdfont Hx	$FP/n019024l.afm $FP/NimbusSansNarrow-BoldOblique.afm	-pHelvetica-Narrow-BoldOblique
 stdfont KR	$FP/b018012l.afm $FP/URWBookman-Light.afm	-pBookman-Light
 stdfont KI	$FP/b018032l.afm $FP/URWBookman-LightItalic.afm	-pBookman-LightItalic
 stdfont KB	$FP/b018015l.afm $FP/URWBookman-Demi.afm	-pBookman-Demi
