@@ -610,12 +610,12 @@ static void otf_gsubtype1(void *otf, void *sub, char *feat, struct gctx *ctx)
 	cov = coverage(sub + U16(sub, 2), &ncov);
 	if (fmt == 1) {
 		for (i = 0; i < ncov; i++) {
-			if (cov[i] + S16(sub, 4) >= glyph_n)
+			int dst = cov[i] + S16(sub, 4);
+			if (dst >= glyph_n || dst < 0)
 				continue;
 			printf("gsub %s %d", feat, 2 + gctx_len(ctx, 1));
 			gctx_backtrack(ctx);
-			printf(" -%s +%s", glyph_name[cov[i]],
-				glyph_name[cov[i] + S16(sub, 4)]);
+			printf(" -%s +%s", glyph_name[cov[i]], glyph_name[dst]);
 			gctx_lookahead(ctx, 1);
 			printf("\n");
 		}
