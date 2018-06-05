@@ -1072,10 +1072,17 @@ static void otf_cff(void *otf, void *cff)
 	glyph_n = cffidx_cnt(chridx);
 	badcff = cffidx_cnt(chridx) - 391 > cffidx_cnt(stridx);
 	strcpy(glyph_name[0], ".notdef");
-	/* read font full name */
+	/* read font name from name index */
+	if (cffidx_cnt(nameidx) > 0) {
+		char name[256] = "";
+		memcpy(name, cffidx_get(nameidx, 0), cffidx_len(nameidx, 0));
+		if (name[0])
+			trfn_psfont(name);
+	}
+	/* read font full name from top dict */
 	fullname = cffdict_get(cffidx_get(topidx, 0),
 			cffidx_len(topidx, 0), 2, NULL);
-	if (fullname - 391 < cffidx_cnt(chridx)) {
+	if (fullname && fullname - 391 < cffidx_cnt(stridx)) {
 		char name[256];
 		char name_nospace[256];
 		cff_char(stridx, fullname, name);
