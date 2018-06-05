@@ -1040,6 +1040,14 @@ static void cff_char(void *stridx, int id, char *dst)
 	dst[len] = '\0';
 }
 
+static void strcpy_nospace(char *d, char *s)
+{
+	for (; *s; s++)
+		if (*s != ' ')
+			*d++ = *s;
+	*d = '\0';
+}
+
 static void otf_cff(void *otf, void *cff)
 {
 	void *nameidx;		/* name index */
@@ -1048,6 +1056,7 @@ static void otf_cff(void *otf, void *cff)
 	void *chridx;		/* charstrings index */
 	void *charset;		/* charset offset */
 	int badcff;		/* invalid CFF SIDs */
+	int fullname;		/* FullName SID */
 	int i, j;
 	if (U8(cff, 0) != 1)
 		return;
@@ -1063,6 +1072,16 @@ static void otf_cff(void *otf, void *cff)
 	glyph_n = cffidx_cnt(chridx);
 	badcff = cffidx_cnt(chridx) - 391 > cffidx_cnt(stridx);
 	strcpy(glyph_name[0], ".notdef");
+	/* read font full name */
+	fullname = cffdict_get(cffidx_get(topidx, 0),
+			cffidx_len(topidx, 0), 2, NULL);
+	if (fullname - 391 < cffidx_cnt(chridx)) {
+		char name[256];
+		char name_nospace[256];
+		cff_char(stridx, fullname, name);
+		strcpy_nospace(name_nospace, name);
+		trfn_psfont(name_nospace);
+	}
 	/* read charset: glyph to character name */
 	if (!badcff && U8(charset, 0) == 0) {
 		for (i = 0; i < glyph_n; i++)
