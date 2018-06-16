@@ -5,8 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "sbuf.h"
-#include "trfn.h"
+#include "mkfn.h"
 
 #define MAX(a, b)	((a) < (b) ? (b) : (a))
 #define LEN(a)		(sizeof(a) / sizeof((a)[0]))
@@ -36,9 +35,12 @@ static int glyph_bbox[NGLYPHS][4];
 static int glyph_wid[NGLYPHS];
 static int glyph_n;
 static int upm;			/* units per em */
-static int res;			/* device resolution */
-static int kmin;		/* minimum kerning value */
-static int warn;		/* report unsupported tables */
+
+struct otf {
+	void *otf;		/* TTC header or offset table */
+	void *off;		/* offset table */
+	char name[128];		/* font name */
+};
 
 static char *macset[];
 static char *stdset[];
@@ -50,7 +52,7 @@ static int owid(int w)
 
 static int uwid(int w)
 {
-	int d = 72000 / res;
+	int d = 72000 / mkfn_res;
 	return (w < 0 ? owid(w) - d / 20 : owid(w) + d / 20) * 10 / d;
 }
 
@@ -64,7 +66,7 @@ static int otf_r2l(char *feat)
 /* report unsupported otf tables */
 static void otf_unsupported(char *sub, int type, int fmt)
 {
-	if (warn) {
+	if (mkfn_warn) {
 		fprintf(stderr, "neatmkfn: unsupported %s lookup %d", sub, type);
 		if (fmt > 0)
 			fprintf(stderr, " format %d", fmt);
@@ -73,20 +75,20 @@ static void otf_unsupported(char *sub, int type, int fmt)
 }
 
 /* find the otf table with the given name */
-static void *otf_table(void *otf, char *name)
+static void *otf_table(struct otf *otf, char *name)
 {
-	int nrecs = U16(otf, 4);
+	int nrecs = U16(otf->off, 4);
 	int i;
 	for (i = 0; i < nrecs; i++) {
-		void *rec = otf + 12 + i * 16;	/* an otf table record */
+		void *rec = otf->off + 12 + i * 16;	/* an otf table record */
 		if (!strncmp(rec, name, 4))
-			return otf + U32(rec, 8);
+			return otf->otf + U32(rec, 8);
 	}
 	return NULL;
 }
 
 /* obtain postscript font name from name table */
-static void otf_name(void *otf, void *tab)
+static void otf_name(struct otf *otf, void *tab)
 {
 	char name[256];
 	void *str = tab + U16(tab, 4);		/* storage area */
@@ -103,13 +105,13 @@ static void otf_name(void *otf, void *tab)
 		if (pid == 1 && eid == 0 && lid == 0 && nid == 6) {
 			memcpy(name, str + off, len);
 			name[len] = '\0';
-			trfn_psfont(name);
+			snprintf(otf->name, sizeof(otf->name), "%s", name);
 		}
 	}
 }
 
 /* parse otf cmap format 4 subtable */
-static void otf_cmap4(void *otf, void *cmap4)
+static void otf_cmap4(struct otf *otf, void *cmap4)
 {
 	int nsegs;
 	void *ends, *begs, *deltas, *offsets;
@@ -137,7 +139,7 @@ static void otf_cmap4(void *otf, void *cmap4)
 }
 
 /* parse otf cmap header */
-static void otf_cmap(void *otf, void *cmap)
+static void otf_cmap(struct otf *otf, void *cmap)
 {
 	int nrecs = U16(cmap, 2);
 	int i;
@@ -152,7 +154,7 @@ static void otf_cmap(void *otf, void *cmap)
 	}
 }
 
-static void otf_post(void *otf, void *post)
+static void otf_post(struct otf *otf, void *post)
 {
 	void *post2;			/* version 2.0 header */
 	void *index;			/* glyph name indices */
@@ -178,7 +180,7 @@ static void otf_post(void *otf, void *post)
 	}
 }
 
-static void otf_glyf(void *otf, void *glyf)
+static void otf_glyf(struct otf *otf, void *glyf)
 {
 	void *maxp = otf_table(otf, "maxp");
 	void *head = otf_table(otf, "head");
@@ -204,7 +206,7 @@ static void otf_glyf(void *otf, void *glyf)
 	}
 }
 
-static void otf_hmtx(void *otf, void *hmtx)
+static void otf_hmtx(struct otf *otf, void *hmtx)
 {
 	void *hhea = otf_table(otf, "hhea");
 	int n;
@@ -216,7 +218,7 @@ static void otf_hmtx(void *otf, void *hmtx)
 		glyph_wid[i] = glyph_wid[n - 1];
 }
 
-static void otf_kern(void *otf, void *kern)
+static void otf_kern(struct otf *otf, void *kern)
 {
 	int off = 4;
 	int i, j;
@@ -231,8 +233,8 @@ static void otf_kern(void *otf, void *kern)
 				int c1 = U16(tab, 14 + 6 * j);
 				int c2 = U16(tab, 14 + 6 * j + 2);
 				int val = S16(tab, 14 + 6 * j + 4);
-				trfn_kern(glyph_name[c1], glyph_name[c2],
-					owid(val));
+				mkfn_kern(glyph_name[c1], glyph_name[c2],
+					uwid(val));
 			}
 		}
 	}
@@ -350,7 +352,7 @@ static int valuerecord_small(int fmt, void *rec)
 	int i;
 	for (i = 0; i < 8; i++) {
 		if (fmt & (1 << i)) {
-			if (abs(uwid(S16(rec, off))) >= MAX(1, kmin))
+			if (abs(uwid(S16(rec, off))) >= MAX(1, mkfn_kmin))
 				return 0;
 			off += 2;
 		}
@@ -359,7 +361,7 @@ static int valuerecord_small(int fmt, void *rec)
 }
 
 /* single adjustment positioning */
-static void otf_gpostype1(void *otf, void *sub, char *feat)
+static void otf_gpostype1(struct otf *otf, void *sub, char *feat)
 {
 	int fmt = U16(sub, 0);
 	int vfmt = U16(sub, 4);
@@ -391,7 +393,7 @@ static void otf_gpostype1(void *otf, void *sub, char *feat)
 }
 
 /* pair adjustment positioning */
-static void otf_gpostype2(void *otf, void *sub, char *feat)
+static void otf_gpostype2(struct otf *otf, void *sub, char *feat)
 {
 	int fmt = U16(sub, 0);
 	int vfmt1 = U16(sub, 4);	/* valuerecord 1 */
@@ -454,7 +456,7 @@ static void otf_gpostype2(void *otf, void *sub, char *feat)
 }
 
 /* cursive attachment positioning */
-static void otf_gpostype3(void *otf, void *sub, char *feat)
+static void otf_gpostype3(struct otf *otf, void *sub, char *feat)
 {
 	int fmt = U16(sub, 0);
 	int *cov, *icov, *ocov;
@@ -484,9 +486,8 @@ static void otf_gpostype3(void *otf, void *sub, char *feat)
 		if (prev) {
 			int dx = -uwid(S16(sub, prev + 2));
 			int dy = -uwid(S16(sub, prev + 4));
-			if (otf_r2l(feat)) {
+			if (otf_r2l(feat))
 				dx += uwid(glyph_wid[cov[i]]);
-			}
 			printf("gpos %s 2 @%d %s:%+d%+d%+d%+d\n",
 				feat, igrp, glyph_name[cov[i]],
 				0, 0, dx, dy);
@@ -506,7 +507,7 @@ static void otf_gpostype3(void *otf, void *sub, char *feat)
 }
 
 /* mark-to-base attachment positioning */
-static void otf_gpostype4(void *otf, void *sub, char *feat)
+static void otf_gpostype4(struct otf *otf, void *sub, char *feat)
 {
 	int fmt = U16(sub, 0);
 	int *mcov;		/* mark coverage */
@@ -601,7 +602,7 @@ static void gctx_lookahead(struct gctx *ctx, int patlen)
 }
 
 /* single substitution */
-static void otf_gsubtype1(void *otf, void *sub, char *feat, struct gctx *ctx)
+static void otf_gsubtype1(struct otf *otf, void *sub, char *feat, struct gctx *ctx)
 {
 	int *cov;
 	int fmt = U16(sub, 0);
@@ -635,7 +636,7 @@ static void otf_gsubtype1(void *otf, void *sub, char *feat, struct gctx *ctx)
 }
 
 /* alternate substitution */
-static void otf_gsubtype3(void *otf, void *sub, char *feat, struct gctx *ctx)
+static void otf_gsubtype3(struct otf *otf, void *sub, char *feat, struct gctx *ctx)
 {
 	int *cov;
 	int fmt = U16(sub, 0);
@@ -660,7 +661,7 @@ static void otf_gsubtype3(void *otf, void *sub, char *feat, struct gctx *ctx)
 }
 
 /* ligature substitution */
-static void otf_gsubtype4(void *otf, void *sub, char *feat, struct gctx *ctx)
+static void otf_gsubtype4(struct otf *otf, void *sub, char *feat, struct gctx *ctx)
 {
 	int fmt = U16(sub, 0);
 	int *cov;
@@ -689,7 +690,7 @@ static void otf_gsubtype4(void *otf, void *sub, char *feat, struct gctx *ctx)
 }
 
 /* chaining contextual substitution */
-static void otf_gsubtype6(void *otf, void *sub, char *feat, void *gsub)
+static void otf_gsubtype6(struct otf *otf, void *sub, char *feat, void *gsub)
 {
 	struct gctx ctx = {{0}};
 	void *lookups = gsub + U16(gsub, 8);
@@ -755,7 +756,7 @@ struct otflookup {
 };
 
 /* parse the given gsub/gpos feature table */
-static int otf_featrec(void *otf, void *gtab, void *featrec,
+static int otf_featrec(struct otf *otf, void *gtab, void *featrec,
 			char *stag, char *ltag,
 			struct otflookup *lookups, int lookups_n)
 {
@@ -783,7 +784,7 @@ static int otf_featrec(void *otf, void *gtab, void *featrec,
 }
 
 /* parse the given language table and its feature tables */
-static int otf_lang(void *otf, void *gtab, void *lang, char *stag, char *ltag,
+static int otf_lang(struct otf *otf, void *gtab, void *lang, char *stag, char *ltag,
 		struct otflookup *lookups, int lookups_n)
 {
 	void *feats = gtab + U16(gtab, 6);
@@ -815,13 +816,13 @@ static int lookupcmp(void *v1, void *v2)
 	struct otflookup *l2 = v2;
 	if (strcmp(l1->scrp, l2->scrp))
 		return strcmp(l1->scrp, l2->scrp);
-	if (trfn_featrank(l1->scrp, l1->feat) != trfn_featrank(l1->scrp, l2->feat))
-		return trfn_featrank(l1->scrp, l1->feat) - trfn_featrank(l1->scrp, l2->feat);
+	if (mkfn_featrank(l1->scrp, l1->feat) != mkfn_featrank(l1->scrp, l2->feat))
+		return mkfn_featrank(l1->scrp, l1->feat) - mkfn_featrank(l1->scrp, l2->feat);
 	return l1->lookup - l2->lookup;
 }
 
 /* extract lookup tables for all features of the given gsub/gpos table */
-static int otf_gtab(void *otf, void *gpos, struct otflookup *lookups)
+static int otf_gtab(struct otf *otf, void *gpos, struct otflookup *lookups)
 {
 	void *scripts = gpos + U16(gpos, 4);
 	int nscripts, nlangs;
@@ -834,18 +835,18 @@ static int otf_gtab(void *otf, void *gpos, struct otflookup *lookups)
 		void *grec = scripts + 2 + 6 * i;
 		memcpy(stag, grec, 4);
 		stag[4] = '\0';
-		if (!trfn_script(stag, nscripts))
+		if (!mkfn_script(stag, nscripts))
 			continue;
 		script = scripts + U16(grec, 4);
 		nlangs = U16(script, 2);
-		if (U16(script, 0) && trfn_lang(NULL, nlangs + (U16(script, 0) != 0)))
+		if (U16(script, 0) && mkfn_lang(NULL, nlangs + (U16(script, 0) != 0)))
 			n = otf_lang(otf, gpos, script + U16(script, 0),
 						stag, "", lookups, n);
 		for (j = 0; j < nlangs; j++) {
 			void *lrec = script + 4 + 6 * j;
 			memcpy(ltag, lrec, 4);
 			ltag[4] = '\0';
-			if (trfn_lang(ltag, nlangs + (U16(script, 0) != 0)))
+			if (mkfn_lang(ltag, nlangs + (U16(script, 0) != 0)))
 				n = otf_lang(otf, gpos, script + U16(lrec, 4),
 						stag, ltag, lookups, n);
 		}
@@ -854,12 +855,14 @@ static int otf_gtab(void *otf, void *gpos, struct otflookup *lookups)
 	return n;
 }
 
-static void otf_gpos(void *otf, void *gpos)
+static void otf_gpos(struct otf *otf, void *gpos)
 {
 	struct otflookup lookups[NLOOKUPS];
 	void *lookuplist = gpos + U16(gpos, 8);
 	int nlookups = otf_gtab(otf, gpos, lookups);
 	int i, j;
+	if (mkfn_dry)
+		return;
 	for (i = 0; i < nlookups; i++) {
 		void *lookup = lookuplist + U16(lookuplist, 2 + 2 * lookups[i].lookup);
 		int ltype = U16(lookup, 0);
@@ -892,12 +895,14 @@ static void otf_gpos(void *otf, void *gpos)
 	}
 }
 
-static void otf_gsub(void *otf, void *gsub)
+static void otf_gsub(struct otf *otf, void *gsub)
 {
 	struct otflookup lookups[NLOOKUPS];
 	void *lookuplist = gsub + U16(gsub, 8);
 	int nlookups = otf_gtab(otf, gsub, lookups);
 	int i, j;
+	if (mkfn_dry)
+		return;
 	for (i = 0; i < nlookups; i++) {
 		void *lookup = lookuplist + U16(lookuplist, 2 + 2 * lookups[i].lookup);
 		int ltype = U16(lookup, 0);
@@ -1040,7 +1045,7 @@ static void cff_char(void *stridx, int id, char *dst)
 	dst[len] = '\0';
 }
 
-static void otf_cff(void *otf, void *cff)
+static void otf_cff(struct otf *otf, void *cff)
 {
 	void *nameidx;		/* name index */
 	void *topidx;		/* top dict index */
@@ -1067,8 +1072,8 @@ static void otf_cff(void *otf, void *cff)
 	if (cffidx_cnt(nameidx) > 0) {
 		char name[256] = "";
 		memcpy(name, cffidx_get(nameidx, 0), cffidx_len(nameidx, 0));
-		if (name[0])
-			trfn_psfont(name);
+		if (name[0] && !otf->name[0])
+			snprintf(otf->name, sizeof(otf->name), "%s", name);
 	}
 	/* read charset: glyph to character name */
 	if (!badcff && U8(charset, 0) == 0) {
@@ -1100,20 +1105,30 @@ static void *otf_input(int fd)
 	return sbuf_done(sb);
 }
 
-static char *otf_buf;
+static void otf_feat(struct otf *otf)
+{
+	if (otf_table(otf, "GSUB"))
+		otf_gsub(otf, otf_table(otf, "GSUB"));
+	if (otf_table(otf, "GPOS"))
+		otf_gpos(otf, otf_table(otf, "GPOS"));
+}
 
-int otf_read(void)
+int otf_offsettable(void *otf_otf, void *otf_off)
 {
 	int i;
-	otf_buf = otf_input(0);
-	upm = U16(otf_table(otf_buf, "head"), 18);
-	otf_name(otf_buf, otf_table(otf_buf, "name"));
-	otf_cmap(otf_buf, otf_table(otf_buf, "cmap"));
-	otf_post(otf_buf, otf_table(otf_buf, "post"));
-	if (otf_table(otf_buf, "glyf"))
-		otf_glyf(otf_buf, otf_table(otf_buf, "glyf"));
-	if (otf_table(otf_buf, "CFF "))
-		otf_cff(otf_buf, otf_table(otf_buf, "CFF "));
+	unsigned tag = U32(otf_off, 0);
+	struct otf otf_cur = {otf_otf, otf_off};
+	struct otf *otf = &otf_cur;
+	if (tag != 0x00010000 && tag != 0x4F54544F)
+		return 1;
+	upm = U16(otf_table(otf, "head"), 18);
+	otf_name(otf, otf_table(otf, "name"));
+	otf_cmap(otf, otf_table(otf, "cmap"));
+	otf_post(otf, otf_table(otf, "post"));
+	if (otf_table(otf, "glyf"))
+		otf_glyf(otf, otf_table(otf, "glyf"));
+	if (otf_table(otf, "CFF "))
+		otf_cff(otf, otf_table(otf, "CFF "));
 	for (i = 0; i < glyph_n; i++) {
 		if (!glyph_name[i][0]) {
 			if (glyph_code[i])
@@ -1122,28 +1137,39 @@ int otf_read(void)
 				sprintf(glyph_name[i], "gl%05X", i);
 		}
 	}
-	otf_hmtx(otf_buf, otf_table(otf_buf, "hmtx"));
+	otf_hmtx(otf, otf_table(otf, "hmtx"));
+	if (!mkfn_font(otf->name))
+		return 0;
 	for (i = 0; i < glyph_n; i++) {
-		trfn_char(glyph_name[i], -1,
+		mkfn_char(glyph_name[i], -1,
 			glyph_code[i] != 0xffff ? glyph_code[i] : 0,
-			owid(glyph_wid[i]),
-			owid(glyph_bbox[i][0]), owid(glyph_bbox[i][1]),
-			owid(glyph_bbox[i][2]), owid(glyph_bbox[i][3]));
+			uwid(glyph_wid[i]),
+			uwid(glyph_bbox[i][0]), uwid(glyph_bbox[i][1]),
+			uwid(glyph_bbox[i][2]), uwid(glyph_bbox[i][3]));
 	}
-	if (otf_table(otf_buf, "kern"))
-		otf_kern(otf_buf, otf_table(otf_buf, "kern"));
+	mkfn_header(otf->name);
+	if (otf_table(otf, "kern"))
+		otf_kern(otf, otf_table(otf, "kern"));
+	otf_feat(otf);
 	return 0;
 }
 
-void otf_feat(int r, int k, int w)
+int otf_read(void)
 {
-	res = r;
-	kmin = k;
-	warn = w;
-	if (otf_table(otf_buf, "GSUB"))
-		otf_gsub(otf_buf, otf_table(otf_buf, "GSUB"));
-	if (otf_table(otf_buf, "GPOS"))
-		otf_gpos(otf_buf, otf_table(otf_buf, "GPOS"));
+	char *otf_buf = otf_input(0);
+	unsigned tag = U32(otf_buf, 0);
+	int n, i;
+	if (tag == 0x00010000 || tag == 0x4F54544F)
+		return otf_offsettable(otf_buf, otf_buf);
+	if (tag != 0x74746366)
+		return 1;
+	/* OpenType Collections */
+	n = U32(otf_buf, 8);
+	for (i = 0; i < n; i++) {
+		void *off = otf_buf + U32(otf_buf, 12 + i * 4);
+		otf_offsettable(otf_buf, off);
+	}
+	return 0;
 }
 
 /* glyph groups */

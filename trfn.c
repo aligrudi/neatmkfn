@@ -2,37 +2,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "sbuf.h"
-#include "tab.h"
-#include "trfn.h"
+#include "mkfn.h"
 #include "trfn_agl.h"
 #include "trfn_ch.h"
 
-#define WX(w)		(((w) < 0 ? (w) - trfn_div / 20 : (w) + trfn_div / 20) * (long) 10 / trfn_div)
 #define LEN(a)		((sizeof(a) / sizeof((a)[0])))
 #define HEXDIGS		"0123456789ABCDEF"
 #define NCHAR		8	/* number of characters per glyph */
 #define GNLEN		64	/* glyph name length */
-#define AGLLEN		8192	/* adobe glyphlist length */
 
-static struct sbuf *sbuf_char;	/* characters */
-static struct sbuf *sbuf_kern;	/* kerning pairs */
-static int trfn_div;		/* divisor of widths x 10 */
-static int trfn_swid;		/* space width */
-static int trfn_special;	/* special flag */
-static int trfn_kmin;		/* minimum kerning value */
-static int trfn_bbox;		/* include bounding box */
-static int trfn_noligs;		/* suppress ligatures */
-static int trfn_pos;		/* include glyph positions */
-static char trfn_ligs[8192];	/* font ligatures */
-static char trfn_ligs2[8192];	/* font ligatures, whose length is two */
-static char trfn_trname[256];	/* font troff name */
-static char trfn_psname[256];	/* font ps name */
-static char trfn_path[4096];	/* font path */
+/* for buffering the output */
+static struct sbuf *sbuf_char;	/* character definitions */
+/* handling ligatures */
+static char mkfn_ligs[8192];	/* font ligatures */
+static char mkfn_ligs2[8192];	/* font ligatures, whose length is two */
 /* character type */
-static int trfn_asc;		/* minimum height of glyphs with ascender */
-static int trfn_desc;		/* minimum depth of glyphs with descender */
-
+static int mkfn_asc;		/* minimum height of glyphs with ascender */
+static int mkfn_desc;		/* minimum depth of glyphs with descender */
 /* lookup tables */
 static struct tab *tab_agl;	/* adobe glyph list table */
 static struct tab *tab_alts;	/* character aliases table */
@@ -224,7 +210,7 @@ static void trfn_aglexceptions(char *dst)
 
 static void trfn_ligput(char *c)
 {
-	char *dst = strlen(c) == 2 ? trfn_ligs2 : trfn_ligs;
+	char *dst = strlen(c) == 2 ? mkfn_ligs2 : mkfn_ligs;
 	sprintf(strchr(dst, '\0'), "%s ", c);
 }
 
@@ -247,25 +233,25 @@ static int trfn_type(char *s, int lly, int ury)
 {
 	int typ = 0;
 	int c = !s[0] || s[1] ? 0 : (unsigned char) *s;
-	if (c == 't' && !trfn_asc)
-		trfn_asc = ury;
+	if (c == 't' && !mkfn_asc)
+		mkfn_asc = ury;
 	if ((c == 'g' || c == 'j' || c == 'p' || c == 'q' || c == 'y') &&
-			(!trfn_desc || trfn_desc < lly))
-		trfn_desc = lly;
-	if (!trfn_desc || !trfn_asc) {
+			(!mkfn_desc || mkfn_desc < lly))
+		mkfn_desc = lly;
+	if (!mkfn_desc || !mkfn_asc) {
 		if (c > 0 && c < 128)
 			return ctype_ascii[c];
 		return 3;
 	}
-	if (!trfn_desc || lly <= trfn_desc)
+	if (!mkfn_desc || lly <= mkfn_desc)
 		typ |= 1;
-	if (!trfn_asc || ury >= trfn_asc)
+	if (!mkfn_asc || ury >= mkfn_asc)
 		typ |= 2;
 	return typ;
 }
 
 /* n is the position and u is the unicode codepoint */
-void trfn_char(char *psname, int n, int u, int wid,
+void mkfn_char(char *psname, int n, int u, int wid,
 		int llx, int lly, int urx, int ury)
 {
 	char uc[GNLEN];			/* mapping unicode character */
@@ -276,81 +262,53 @@ void trfn_char(char *psname, int n, int u, int wid,
 	if (trfn_name(uc, psname, u))
 		strcpy(uc, "---");
 	trfn_aglexceptions(uc);
-	if (trfn_pos && n >= 0 && n < 256)
+	if (mkfn_pos && n >= 0 && n < 256)
 		sprintf(pos, "%d", n);
-	if (trfn_pos && n < 0 && !uc[1] && uc[0] >= 32 && uc[0] <= 125)
+	if (mkfn_pos && n < 0 && !uc[1] && uc[0] >= 32 && uc[0] <= 125)
 		if (!strchr(psname, '.'))
 			sprintf(pos, "%d", uc[0]);
 	typ = trfn_type(!strchr(psname, '.') ? uc : "", lly, ury);
-	if (!trfn_swid && (!strcmp(" ", uc) || !strcmp(" ", uc)))
-		trfn_swid = WX(wid);
+	if (!mkfn_swid && (!strcmp(" ", uc) || !strcmp(" ", uc)))
+		mkfn_swid = wid;
 	/* printing troff charset */
 	if (isspace((unsigned char) uc[0]) || strchr(uc, ' '))
 		strcpy(uc, "---");	/* space not allowed in char names */
 	if (strcmp("---", uc))
 		trfn_lig(uc);
-	sbuf_printf(sbuf_char, "char %s\t%d", uc, WX(wid));
-	if (trfn_bbox && (llx || lly || urx || ury))
-		sbuf_printf(sbuf_char, ",%d,%d,%d,%d",
-			WX(llx), WX(lly), WX(urx), WX(ury));
+	sbuf_printf(sbuf_char, "char %s\t%d", uc, wid);
+	if (mkfn_bbox && (llx || lly || urx || ury))
+		sbuf_printf(sbuf_char, ",%d,%d,%d,%d", llx, lly, urx, ury);
 	sbuf_printf(sbuf_char, "\t%d\t%s\t%s\n", typ, psname, pos);
 	a_tr = tab_get(tab_alts, uc);
 	while (a_tr && *a_tr)
 		sbuf_printf(sbuf_char, "char %s\t\"\n", *a_tr++);
 }
 
-void trfn_kern(char *c1, char *c2, int x)
+void mkfn_kern(char *c1, char *c2, int x)
 {
-	if (WX(x) && abs(WX(x)) >= trfn_kmin)
-		sbuf_printf(sbuf_kern, "kern %s\t%s\t%d\n", c1, c2, WX(x));
+	if (x && abs(x) >= mkfn_kmin)
+		if (!mkfn_dry)
+			printf("kern %s\t%s\t%d\n", c1, c2, x);
 }
 
-void trfn_trfont(char *name)
+/* print spacewidth and ligature lines */
+void trfn_header(void)
 {
-	if (!trfn_trname[0])
-		strcpy(trfn_trname, name);
+	printf("spacewidth %d\n", mkfn_swid);
+	if (!mkfn_noligs)
+		printf("ligatures %s%s0\n", mkfn_ligs, mkfn_ligs2);
 }
 
-void trfn_psfont(char *name)
+/* print character definitions */
+void trfn_cdefs(void)
 {
-	if (!trfn_psname[0])
-		strcpy(trfn_psname, name);
-}
-
-void trfn_pspath(char *name)
-{
-	if (!trfn_path[0])
-		strcpy(trfn_path, name);
-}
-
-void trfn_print(void)
-{
-	if (trfn_trname[0])
-		printf("name %s\n", trfn_trname);
-	if (trfn_psname[0])
-		printf("fontname %s\n", trfn_psname);
-	if (trfn_path[0])
-		printf("fontpath %s\n", trfn_path);
-	printf("spacewidth %d\n", trfn_swid);
-	if (!trfn_noligs)
-		printf("ligatures %s%s0\n", trfn_ligs, trfn_ligs2);
-	if (trfn_special)
-		printf("special\n");
 	fputs(sbuf_buf(sbuf_char), stdout);
-	fputs(sbuf_buf(sbuf_kern), stdout);
 }
 
-void trfn_init(int res, int spc, int kmin, int bbox, int ligs, int pos)
+void trfn_init(void)
 {
 	int i;
-	trfn_div = 72000 / res;
-	trfn_special = spc;
-	trfn_kmin = kmin;
-	trfn_bbox = bbox;
-	trfn_noligs = !ligs;
-	trfn_pos = pos;
 	sbuf_char = sbuf_make();
-	sbuf_kern = sbuf_make();
 	tab_agl = tab_alloc(LEN(agl));
 	for (i = 0; i < LEN(agl); i++)
 		tab_put(tab_agl, agl[i][0], agl[i][1]);
@@ -362,7 +320,6 @@ void trfn_init(int res, int spc, int kmin, int bbox, int ligs, int pos)
 void trfn_done(void)
 {
 	sbuf_free(sbuf_char);
-	sbuf_free(sbuf_kern);
 	tab_free(tab_alts);
 	if (tab_agl)
 		tab_free(tab_agl);

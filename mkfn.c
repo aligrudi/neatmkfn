@@ -15,15 +15,29 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "trfn.h"
+#include "mkfn.h"
 
 #define LEN(a)		((sizeof(a) / sizeof((a)[0])))
 
-static char *trfn_scripts;	/* filtered scripts */
-static char *trfn_langs;	/* filtered languages */
+static char *mkfn_scripts;	/* filtered scripts */
+static char *mkfn_langs;	/* filtered languages */
+static char *mkfn_subfont;	/* filtered font */
+static char *mkfn_trname;	/* font troff name */
+static char *mkfn_psname;	/* font ps name */
+static char *mkfn_path;		/* font path */
+int mkfn_res = 720;		/* device resolution */
+int mkfn_warn;			/* warn about unsupported features */
+int mkfn_kmin;			/* minimum kerning value */
+int mkfn_swid;			/* space width */
+int mkfn_special;		/* special flag */
+int mkfn_bbox;			/* include bounding box */
+int mkfn_noligs;		/* suppress ligatures */
+int mkfn_pos = 1;		/* include glyph positions */
+int mkfn_dry;			/* generate no output */
 
 /* OpenType specifies a specific feature order for different scripts */
 static char *scriptorder[][2] = {
@@ -60,40 +74,55 @@ static char *scriptorder[][2] = {
 };
 
 /* return 1 if the given script is to be included */
-int trfn_script(char *script, int nscripts)
+int mkfn_script(char *script, int nscripts)
 {
-	/* fill trfn_scripts (if unspecified) in the first call */
-	if (!trfn_scripts) {
+	/* fill mkfn_scripts (if unspecified) in the first call */
+	if (!mkfn_scripts) {
 		if (nscripts == 1 || !script)
 			return 1;
 		if (!strcmp("DFLT", script))
-			trfn_scripts = "DFLT";
+			mkfn_scripts = "DFLT";
 		else
-			trfn_scripts = "latn";
+			mkfn_scripts = "latn";
 	}
-	if (!strcmp("help", trfn_scripts))
-		fprintf(stderr, "script: %s\n", script ? script : "");
+	if (!strcmp("list", mkfn_scripts))
+		printf("%s\n", script ? script : "");
 	if (strchr(script, ' '))
 		*strchr(script, ' ') = '\0';
-	return !!strstr(trfn_scripts, script);
+	return !!strstr(mkfn_scripts, script);
 }
 
 /* return 1 if the given language is to be included */
-int trfn_lang(char *lang, int nlangs)
+int mkfn_lang(char *lang, int nlangs)
 {
-	if (!trfn_langs)
+	if (!mkfn_langs)
 		return 1;
 	if (!lang)
 		lang = "";
-	if (!strcmp("help", trfn_langs))
-		fprintf(stderr, "lang: %s\n", lang);
+	if (!strcmp("list", mkfn_langs))
+		printf("%s\n", lang);
 	if (strchr(lang, ' '))
 		*strchr(lang, ' ') = '\0';
-	return !!strstr(trfn_langs, lang);
+	return !!strstr(mkfn_langs, lang);
+}
+
+/* return 1 if the given font is to be included */
+int mkfn_font(char *font)
+{
+	static int idx;			/* font index */
+	idx++;
+	if (!mkfn_subfont)
+		return idx == 1;
+	if (!strcmp("list", mkfn_subfont))
+		printf("%s\n", font);
+	if (mkfn_subfont[0] && isdigit((unsigned char) mkfn_subfont[0]))
+		if (atoi(mkfn_subfont) == idx)
+			return 1;
+	return !strcmp(mkfn_subfont, font);
 }
 
 /* return the rank of the given feature, for the current script */
-int trfn_featrank(char *scrp, char *feat)
+int mkfn_featrank(char *scrp, char *feat)
 {
 	static char **order;
 	int i;
@@ -108,9 +137,26 @@ int trfn_featrank(char *scrp, char *feat)
 	return 1000;
 }
 
+void mkfn_header(char *fontname)
+{
+	if (mkfn_dry)
+		return;
+	if (mkfn_trname)
+		printf("name %s\n", mkfn_trname);
+	if (mkfn_psname)
+		printf("fontname %s\n", mkfn_psname);
+	if (!mkfn_psname && fontname && fontname[0])
+		printf("fontname %s\n", fontname);
+	if (mkfn_path)
+		printf("fontpath %s\n", mkfn_path);
+	trfn_header();
+	if (mkfn_special)
+		printf("special\n");
+	trfn_cdefs();
+}
+
 int otf_read(void);
 int afm_read(void);
-void otf_feat(int res, int kmin, int warn);
 
 static char *usage =
 	"Usage: mktrfn [options] <input >output\n"
@@ -126,20 +172,14 @@ static char *usage =
 	"  -b      \tinclude glyph bounding boxes\n"
 	"  -l      \tsuppress the ligatures line\n"
 	"  -n      \tsuppress glyph positions\n"
-	"  -S scrs \tcomma-separated list of scripts to include (help to list)\n"
-	"  -L langs\tcomma-separated list of languages to include (help to list)\n"
+	"  -S scrs \tcomma-separated list of scripts to include (list to list)\n"
+	"  -L langs\tcomma-separated list of languages to include (list to list)\n"
+	"  -F font \tfont name or index in a font collection (list to list)\n"
 	"  -w      \twarn about unsupported font features\n";
 
 int main(int argc, char *argv[])
 {
 	int afm = 1;
-	int res = 720;
-	int spc = 0;
-	int kmin = 0;
-	int bbox = 0;
-	int warn = 0;
-	int ligs = 1;
-	int pos = 1;
 	int i;
 	for (i = 1; i < argc && argv[i][0] == '-'; i++) {
 		switch (argv[i][1]) {
@@ -147,57 +187,61 @@ int main(int argc, char *argv[])
 			afm = 1;
 			break;
 		case 'b':
-			bbox = 1;
+			mkfn_bbox = 1;
 			break;
 		case 'f':
-			trfn_pspath(argv[i][2] ? argv[i] + 2 : argv[++i]);
+			mkfn_path = argv[i][2] ? argv[i] + 2 : argv[++i];
+			break;
+		case 'F':
+			mkfn_subfont = argv[i][2] ? argv[i] + 2 : argv[++i];
+			mkfn_dry = !strcmp("list", mkfn_subfont);
 			break;
 		case 'k':
-			kmin = atoi(argv[i][2] ? argv[i] + 2 : argv[++i]);
+			mkfn_kmin = atoi(argv[i][2] ? argv[i] + 2 : argv[++i]);
 			break;
 		case 'l':
-			ligs = 0;
+			mkfn_noligs = 1;
 			break;
 		case 'L':
-			trfn_langs = argv[i][2] ? argv[i] + 2 : argv[++i];
+			mkfn_langs = argv[i][2] ? argv[i] + 2 : argv[++i];
+			mkfn_dry = !strcmp("list", mkfn_langs);
 			break;
 		case 'n':
-			pos = 0;
+			mkfn_pos = 0;
 			break;
 		case 'o':
 			afm = 0;
 			break;
 		case 'p':
-			trfn_psfont(argv[i][2] ? argv[i] + 2 : argv[++i]);
+			mkfn_psname = argv[i][2] ? argv[i] + 2 : argv[++i];
 			break;
 		case 'r':
-			res = atoi(argv[i][2] ? argv[i] + 2 : argv[++i]);
+			mkfn_res = atoi(argv[i][2] ? argv[i] + 2 : argv[++i]);
 			break;
 		case 's':
-			spc = 1;
+			mkfn_special = 1;
 			break;
 		case 'S':
-			trfn_scripts = argv[i][2] ? argv[i] + 2 : argv[++i];
+			mkfn_scripts = argv[i][2] ? argv[i] + 2 : argv[++i];
+			mkfn_dry = !strcmp("list", mkfn_scripts);
 			break;
 		case 't':
-			trfn_trfont(argv[i][2] ? argv[i] + 2 : argv[++i]);
+			mkfn_trname = argv[i][2] ? argv[i] + 2 : argv[++i];
 			break;
 		case 'w':
-			warn = 1;
+			mkfn_warn = 1;
 			break;
 		default:
 			printf("%s", usage);
 			return 0;
 		}
 	}
-	trfn_init(res, spc, kmin, bbox, ligs, pos);
-	if (afm)
-		afm_read();
-	else
-		otf_read();
-	trfn_print();
-	if (!afm)
-		otf_feat(res, kmin, warn);
+	trfn_init();
+	if ((afm ? afm_read() : otf_read())) {
+		fprintf(stderr, "neatmkfn: cannot parse the font\n");
+		trfn_done();
+		return 1;
+	}
 	trfn_done();
 	return 0;
 }

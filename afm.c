@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "trfn.h"
+#include "mkfn.h"
 
 #define TOKLEN		256
 
@@ -17,6 +17,11 @@ static char *afm_charfield(char *s, char *d)
 	return s;
 }
 
+static int uwid(int w)
+{
+	long div = 72000 / mkfn_res;
+	return (w < 0 ? w - div / 20 : w + div / 20) * (long) 10 / div;
+}
 int afm_read(void)
 {
 	char ln[1024];
@@ -25,13 +30,13 @@ int afm_read(void)
 	char wid[TOKLEN] = "", field[TOKLEN] = "";
 	char llx[TOKLEN] = "0", lly[TOKLEN] = "0";
 	char urx[TOKLEN] = "0", ury[TOKLEN] = "0";
+	char fontname[128];
 	char *s;
 	while (fgets(ln, sizeof(ln), stdin)) {
 		if (ln[0] == '#')
 			continue;
 		if (!strncmp("FontName ", ln, 8)) {
-			sscanf(ln, "FontName %s", ch);
-			trfn_psfont(ch);
+			sscanf(ln, "FontName %s", fontname);
 			continue;
 		}
 		if (!strncmp("StartCharMetrics", ln, 16))
@@ -72,9 +77,11 @@ int afm_read(void)
 			break;
 		}
 		if (ch[0] && pos[0] && wid[0])
-			trfn_char(ch, atoi(pos), 0, atoi(wid),
-				atoi(llx), atoi(lly), atoi(urx), atoi(ury));
+			mkfn_char(ch, atoi(pos), 0, uwid(atoi(wid)),
+				uwid(atoi(llx)), uwid(atoi(lly)),
+				uwid(atoi(urx)), uwid(atoi(ury)));
 	}
+	mkfn_header(fontname);
 	while (fgets(ln, sizeof(ln), stdin)) {
 		if (ln[0] == '#')
 			continue;
@@ -87,7 +94,7 @@ int afm_read(void)
 		if (!strncmp("EndKernPairs", ln, 12))
 			break;
 		if (sscanf(ln, "KPX %s %s %s", c1, c2, wid) == 3)
-			trfn_kern(c1, c2, atoi(wid));
+			mkfn_kern(c1, c2, uwid(atoi(wid)));
 	}
 	return 0;
 }

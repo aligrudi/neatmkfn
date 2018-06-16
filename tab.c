@@ -1,7 +1,7 @@
 /* A Dictionary */
 #include <stdlib.h>
 #include <string.h>
-#include "tab.h"
+#include "mkfn.h"
 
 struct tab {
 	char **keys;

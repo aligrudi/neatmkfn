@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "sbuf.h"
+#include "mkfn.h"
 
 #define MAX(a, b)	((a) < (b) ? (b) : (a))
 #define ALIGN(n, a)	(((n) + (a) - 1) & ~((a) - 1))
