@@ -868,6 +868,7 @@ static void otf_gpos(struct otf *otf, void *gpos)
 		int ltype = U16(lookup, 0);
 		int ntabs = U16(lookup, 4);
 		char *tag = lookuptag(&lookups[i]);
+		printf("gsec %s\n", tag);
 		for (j = 0; j < ntabs; j++) {
 			void *tab = lookup + U16(lookup, 6 + 2 * j);
 			int type = ltype;
@@ -908,6 +909,7 @@ static void otf_gsub(struct otf *otf, void *gsub)
 		int ltype = U16(lookup, 0);
 		int ntabs = U16(lookup, 4);
 		char *tag = lookuptag(&lookups[i]);
+		printf("gsec %s\n", tag);
 		for (j = 0; j < ntabs; j++) {
 			void *tab = lookup + U16(lookup, 6 + 2 * j);
 			int type = ltype;
