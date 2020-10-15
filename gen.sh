@@ -19,8 +19,7 @@ echo "ver 1" >>$TP/DESC
 echo "unitwidth 10" >>$TP/DESC
 
 # afmconv troff_name font_path extra_mktrfn_options
-afmconv()
-{
+afmconv() {
 	echo $1
 	T1="`dirname $2`/`basename $2 .afm`.t1"
 	test -f "$T1" || T1="`dirname $2`/`basename $2 .afm`.pfa"
@@ -30,26 +29,26 @@ afmconv()
 }
 
 # ttfconv troff_name font_path extra_mktrfn_options
-ttfconv()
-{
+ttfconv() {
 	echo $1
 	cat $2 | ./mkfn -b -l -o -r$RES $SCR -t$1 -f "$2" $3 $4 $5 $6 $7 | \
 		sed "/^ligatures /s/ $LIGIGN//g" >$TP/$1
 }
 
 # otfconv troff_name font_path extra_mktrfn_options
-otfconv()
-{
+otfconv() {
 	TTF="/tmp/.neatmkfn.ttf"
-	# convert the OTF file to TTF using fontforge
+	if ! command -v fontforge >/dev/null; then
+		echo "Fontforge is needed to convert OTF files to TTF!"
+		return 1
+	fi
 	fontforge -lang=ff -c "Open(\"$2\"); Generate(\"$TTF\");" >/dev/null 2>&1
 	ttfconv $1 $TTF $3 $4 $5 $6 $7
 	rm $TTF
 }
 
 # stdfont troff_name gs_font urw_font extra_mktrfn_options
-stdfont()
-{
+stdfont() {
 	FN="$2"
 	test -f "$FN" || FN="$3"
 	test -f "$FN" || echo "$0: Font <$3> not found!" >&2
