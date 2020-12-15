@@ -1041,6 +1041,8 @@ static void cff_char(void *stridx, int id, char *dst)
 	}
 	id -= 391;
 	len = cffidx_len(stridx, id);
+	if (mkfn_warn && len >= GNLEN)
+		fprintf(stderr, "neatmkfn: truncating glyph names (GNLEN is too small)\n");
 	if (len >= GNLEN)
 		len = GNLEN - 1;
 	memcpy(dst, cffidx_get(stridx, id), len);
