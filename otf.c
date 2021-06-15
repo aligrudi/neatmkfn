@@ -35,6 +35,7 @@ static int glyph_bbox[NGLYPHS][4];
 static int glyph_wid[NGLYPHS];
 static int glyph_n;
 static int upm;			/* units per em */
+static int sec;			/* current font section (lookup index * 10) */
 
 struct otf {
 	void *otf;		/* TTC header or offset table */
@@ -537,6 +538,7 @@ static void otf_gpostype4(struct otf *otf, void *sub, char *feat)
 		cgrp[i] = ggrp_coverage(grp, cnt);
 		free(grp);
 	}
+	printf("gsec %d\n", sec);
 	for (i = 0; i < mcnt; i++) {
 		void *mark = marks + U16(marks, 2 + 4 * i + 2);	/* mark anchor */
 		int dx = -uwid(S16(mark, 2));
@@ -548,6 +550,7 @@ static void otf_gpostype4(struct otf *otf, void *sub, char *feat)
 		printf("gpos %s 2 @%d %s:%+d%+d%+d%+d\n",
 			feat, bgrp, glyph_name[mcov[i]], dx, dy, 0, 0);
 	}
+	printf("gsec %d\n", sec + 1);
 	for (i = 0; i < bcnt; i++) {
 		for (j = 0; j < ccnt; j++) {
 			void *base = bases + U16(bases, 2 + ccnt * 2 * i + 2 * j);
@@ -868,7 +871,8 @@ static void otf_gpos(struct otf *otf, void *gpos)
 		int ltype = U16(lookup, 0);
 		int ntabs = U16(lookup, 4);
 		char *tag = lookuptag(&lookups[i]);
-		printf("gsec %s\n", tag);
+		sec = (i + 1) * 10;
+		printf("gsec %d %s\n", sec, tag);
 		for (j = 0; j < ntabs; j++) {
 			void *tab = lookup + U16(lookup, 6 + 2 * j);
 			int type = ltype;
@@ -909,7 +913,8 @@ static void otf_gsub(struct otf *otf, void *gsub)
 		int ltype = U16(lookup, 0);
 		int ntabs = U16(lookup, 4);
 		char *tag = lookuptag(&lookups[i]);
-		printf("gsec %s\n", tag);
+		sec = (i + 1) * 10;
+		printf("gsec %d %s\n", sec, tag);
 		for (j = 0; j < ntabs; j++) {
 			void *tab = lookup + U16(lookup, 6 + 2 * j);
 			int type = ltype;
