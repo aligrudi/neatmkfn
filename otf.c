@@ -528,7 +528,9 @@ static void otf_gpostype4(struct otf *otf, void *sub, char *feat)
 	ccnt = U16(sub, 6);
 	marks = sub + U16(sub, 8);
 	bases = sub + U16(sub, 10);
+	/* define a group for base glyphs */
 	bgrp = ggrp_coverage(bcov, bcnt);
+	/* define a group for each mark class */
 	for (i = 0; i < ccnt; i++) {
 		int *grp = malloc(mcnt * sizeof(grp[0]));
 		int cnt = 0;
@@ -538,6 +540,7 @@ static void otf_gpostype4(struct otf *otf, void *sub, char *feat)
 		cgrp[i] = ggrp_coverage(grp, cnt);
 		free(grp);
 	}
+	/* GPOS rules for each mark after base glyphs */
 	printf("gsec %d\n", sec);
 	for (i = 0; i < mcnt; i++) {
 		void *mark = marks + U16(marks, 2 + 4 * i + 2);	/* mark anchor */
@@ -550,6 +553,7 @@ static void otf_gpostype4(struct otf *otf, void *sub, char *feat)
 		printf("gpos %s 2 @%d %s:%+d%+d%+d%+d\n",
 			feat, bgrp, glyph_name[mcov[i]], dx, dy, 0, 0);
 	}
+	/* GPOS rules for each base glyph before a mark */
 	printf("gsec %d\n", sec + 1);
 	for (i = 0; i < bcnt; i++) {
 		for (j = 0; j < ccnt; j++) {
@@ -566,6 +570,80 @@ static void otf_gpostype4(struct otf *otf, void *sub, char *feat)
 	}
 	free(mcov);
 	free(bcov);
+}
+
+/* mark-to-ligature attachment positioning */
+static void otf_gpostype5(struct otf *otf, void *sub, char *feat)
+{
+	int fmt = U16(sub, 0);
+	int *mcov;		/* mark coverage */
+	int *lcov;		/* ligature coverage */
+	int cgrp[1024];		/* glyph groups assigned to classes */
+	int lgrp;		/* the group assigned to base glyphs */
+	int mcnt;		/* mark coverage size */
+	int lcnt;		/* ligature coverage size */
+	int ccnt;		/* class count */
+	void *marks;		/* mark array table */
+	void *ligas;		/* ligature array table */
+	int i, j, k;
+	/* only marks at the end of ligatures are supported */
+	if (fmt != 1)
+		return;
+	mcov = coverage(sub + U16(sub, 2), &mcnt);
+	lcov = coverage(sub + U16(sub, 4), &lcnt);
+	ccnt = U16(sub, 6);
+	marks = sub + U16(sub, 8);
+	ligas = sub + U16(sub, 10);
+	/* define a group for ligatures */
+	lgrp = ggrp_coverage(lcov, lcnt);
+	/* define a group for each mark class */
+	for (i = 0; i < ccnt; i++) {
+		int *grp = malloc(mcnt * sizeof(grp[0]));
+		int cnt = 0;
+		for (j = 0; j < mcnt; j++)
+			if (U16(marks, 2 + 4 * j) == i)
+				grp[cnt++] = mcov[j];
+		cgrp[i] = ggrp_coverage(grp, cnt);
+		free(grp);
+	}
+	/* GPOS rules for each mark after a ligature */
+	printf("gsec %d\n", sec);
+	for (i = 0; i < mcnt; i++) {
+		void *mark = marks + U16(marks, 2 + 4 * i + 2);	/* mark anchor */
+		int dx = -uwid(S16(mark, 2));
+		int dy = -uwid(S16(mark, 4));
+		if (otf_r2l(feat)) {
+			dx += uwid(glyph_wid[mcov[i]]);
+			dy = -dy;
+		}
+		printf("gpos %s 2 @%d %s:%+d%+d%+d%+d\n",
+			feat, lgrp, glyph_name[mcov[i]], dx, dy, 0, 0);
+	}
+	printf("gsec %d\n", sec + 1);
+	/* GPOS rules for each ligature before a mark */
+	for (i = 0; i < lcnt; i++) {
+		void *ligattach = ligas + U16(ligas, 2 + 2 * i);
+		int comcnt = U16(ligattach, 0);		/* component count */
+		/* considering only the last component */
+		k = comcnt - 1;
+		if (comcnt == 0)
+			continue;
+		if (!U16(ligattach, 2 + 2 * ccnt * k))
+			continue;
+		for (j = 0; j < ccnt; j++) {
+			char *base = ligattach + U16(ligattach, 2 + 2 * ccnt * k + 2 * j);
+			int dx = uwid(S16(base, 2)) - uwid(glyph_wid[lcov[i]]);
+			int dy = uwid(S16(base, 4));
+			if (otf_r2l(feat)) {
+				dx += uwid(glyph_wid[lcov[i]]);
+				dy = -dy;
+			}
+			printf("gpos %s 2 %s @%d:%+d%+d%+d%+d\n",
+				feat, glyph_name[lcov[i]], cgrp[j], dx, dy, 0, 0);
+		}
+	}
+	free(mcov);
+	free(lcov);
 }
 
 /* gsub context */
@@ -892,6 +970,9 @@ static void otf_gpos(struct otf *otf, void *gpos)
 				break;
 			case 4:
 				otf_gpostype4(otf, tab, tag);
+				break;
+			case 5:
+				otf_gpostype5(otf, tab, tag);
 				break;
 			default:
 				otf_unsupported("GPOS", type, 0);
