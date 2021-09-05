@@ -1,4 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 project(neatmkfn C)
 add_executable(mkfn mkfn.c trfn.c sbuf.c tab.c afm.c otf.c)
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    target_link_libraries(mkfn ws2_32)
+endif()
 install(TARGETS mkfn)
