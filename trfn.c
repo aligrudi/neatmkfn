@@ -107,7 +107,7 @@ static int agl_map(char *d, char *s)
 
 static int achar_map(char *name)
 {
-	int i;
+	size_t i;
 	for (i = 0; i < LEN(achars); i++) {
 		struct achar *a = &achars[i];
 		if (!strncmp(a->name, name, strlen(a->name))) {
@@ -129,10 +129,10 @@ static int achar_map(char *name)
 
 static int achar_shape(int c, int pjoin, int njoin)
 {
-	int i;
+	size_t i;
 	for (i = 0; i < LEN(achars); i++) {
 		struct achar *a = &achars[i];
-		if (a->c == c) {
+		if ((int) a->c == c) {
 			if (!pjoin && !njoin)
 				return a->c;
 			if (!pjoin && njoin)
@@ -202,7 +202,7 @@ static int trfn_name(char *dst, char *src, int codepoint)
 
 static void trfn_aglexceptions(char *dst)
 {
-	int i;
+	size_t i;
 	for (i = 0; i < LEN(agl_exceptions); i++)
 		if (!strcmp(agl_exceptions[i][0], dst))
 			strcpy(dst, agl_exceptions[i][1]);
@@ -216,11 +216,11 @@ static void trfn_ligput(char *c)
 
 static void trfn_lig(char *c)
 {
-	int i;
+	size_t i;
 	for (i = 0; i < LEN(agl_exceptions); i++)
 		if (!strcmp(agl_exceptions[i][1], c))
 			return;
-	if (c[0] && c[1] && strlen(c) > utf8len((unsigned char) c[0])) {
+	if (c[0] && c[1] && strlen(c) > (size_t) utf8len((unsigned char) c[0])) {
 		trfn_ligput(c);
 	} else {
 		for (i = 0; i < LEN(ligs_utf8); i++)
@@ -307,7 +307,7 @@ void trfn_cdefs(void)
 
 void trfn_init(void)
 {
-	int i;
+	size_t i;
 	sbuf_char = sbuf_make();
 	tab_agl = tab_alloc(LEN(agl));
 	for (i = 0; i < LEN(agl); i++)

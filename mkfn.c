@@ -99,6 +99,8 @@ int mkfn_script(char *script, int nscripts)
 /* return 1 if the given language is to be included */
 int mkfn_lang(char *lang, int nlangs)
 {
+	/* not used */
+	(void) nlangs;
 	if (!mkfn_langs)
 		return 1;
 	if (!lang)
@@ -129,7 +131,7 @@ int mkfn_font(char *font)
 int mkfn_featrank(char *scrp, char *feat)
 {
 	static char **order;
-	int i;
+	size_t i;
 	if (!order || strcmp(scrp, order[0])) {
 		order = NULL;
 		for (i = 0; i < LEN(scriptorder); i++)

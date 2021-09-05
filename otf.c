@@ -123,6 +123,8 @@ static void otf_cmap4(struct otf *otf, void *cmap4)
 	void *ends, *begs, *deltas, *offsets;
 	int beg, end, delta, offset;
 	int i, j;
+	/* not used */
+	(void) otf;
 	nsegs = U16(cmap4, 6) / 2;
 	ends = cmap4 + 14;
 	begs = ends + 2 * nsegs + 2;
@@ -167,6 +169,8 @@ static void otf_post(struct otf *otf, void *post)
 	void *names;			/* glyph names */
 	int cname = 0;
 	int i;
+	/* not used */
+	(void) otf;
 	if (U32(post, 0) != 0x20000)
 		return;
 	post2 = post + 32;
@@ -229,6 +233,8 @@ static void otf_kern(struct otf *otf, void *kern)
 	int off = 4;
 	int i, j;
 	int n = U16(kern, 2);		/* number of kern subtables */
+	/* not used */
+	(void) otf;
 	for (i = 0; i < n; i++) {
 		void *tab = kern + off;	/* a kern subtable */
 		int cov = U16(tab, 4);
@@ -375,6 +381,8 @@ static void otf_gpostype1(struct otf *otf, void *sub, char *feat)
 	int ncov, nvals;
 	int vlen = valuerecord_len(vfmt);
 	int i;
+	/* not used */
+	(void) otf;
 	cov = coverage(sub + U16(sub, 2), &ncov);
 	if (fmt == 1) {
 		for (i = 0; i < ncov; i++) {
@@ -407,6 +415,8 @@ static void otf_gpostype2(struct otf *otf, void *sub, char *feat)
 	int fmtoff1, fmtoff2;
 	int vrlen;			/* the length of vfmt1 and vfmt2 */
 	int i, j;
+	/* not used */
+	(void) otf;
 	vrlen = valuerecord_len(vfmt1) + valuerecord_len(vfmt2);
 	if (fmt == 1) {
 		int nc1 = U16(sub, 8);
@@ -470,6 +480,8 @@ static void otf_gpostype3(struct otf *otf, void *sub, char *feat)
 	int icnt = 0;
 	int ocnt = 0;
 	int igrp, ogrp;
+	/* not used */
+	(void) otf;
 	if (fmt != 1)
 		return;
 	cov = coverage(sub + U16(sub, 2), NULL);
@@ -526,6 +538,8 @@ static void otf_gpostype4(struct otf *otf, void *sub, char *feat)
 	void *marks;		/* mark array table */
 	void *bases;		/* base array table */
 	int i, j;
+	/* not used */
+	(void) otf;
 	if (fmt != 1)
 		return;
 	mcov = coverage(sub + U16(sub, 2), &mcnt);
@@ -591,6 +605,8 @@ static void otf_gpostype5(struct otf *otf, void *sub, char *feat)
 	void *marks;		/* mark array table */
 	void *ligas;		/* ligature array table */
 	int i, j, k;
+	/* not used */
+	(void) otf;
 	/* only marks at the end of ligatures are supported */
 	if (fmt != 1)
 		return;
@@ -694,6 +710,8 @@ static void otf_gsubtype1(struct otf *otf, void *sub, char *feat, struct gctx *c
 	int fmt = U16(sub, 0);
 	int ncov;
 	int i;
+	/* not used */
+	(void) otf;
 	cov = coverage(sub + U16(sub, 2), &ncov);
 	if (fmt == 1) {
 		for (i = 0; i < ncov; i++) {
@@ -727,6 +745,8 @@ static void otf_gsubtype3(struct otf *otf, void *sub, char *feat, struct gctx *c
 	int *cov;
 	int fmt = U16(sub, 0);
 	int n, i, j;
+	/* not used */
+	(void) otf;
 	if (fmt != 1)
 		return;
 	cov = coverage(sub + U16(sub, 2), NULL);
@@ -752,6 +772,8 @@ static void otf_gsubtype4(struct otf *otf, void *sub, char *feat, struct gctx *c
 	int fmt = U16(sub, 0);
 	int *cov;
 	int n, i, j, k;
+	/* not used */
+	(void) otf;
 	if (fmt != 1)
 		return;
 	cov = coverage(sub + U16(sub, 2), NULL);
@@ -778,7 +800,7 @@ static void otf_gsubtype4(struct otf *otf, void *sub, char *feat, struct gctx *c
 /* chaining contextual substitution */
 static void otf_gsubtype6(struct otf *otf, void *sub, char *feat, void *gsub)
 {
-	struct gctx ctx = {{0}};
+	struct gctx ctx = {{0}, {0}, {0}, 0, 0, 0, 0};
 	void *lookups = gsub + U16(gsub, 8);
 	int fmt = U16(sub, 0);
 	int *cov;
@@ -850,6 +872,8 @@ static int otf_featrec(struct otf *otf, void *gtab, void *featrec,
 	void *feat = feats + U16(featrec, 4);
 	int n = U16(feat, 2);
 	int i, j;
+	/* not used */
+	(void) otf;
 	for (i = 0; i < n; i++) {
 		int lookup = U16(feat, 4 + 2 * i);	/* lookup index */
 		/* do not store features common to all languages in a script */
@@ -1212,7 +1236,7 @@ int otf_offsettable(void *otf_otf, void *otf_off)
 {
 	int i;
 	unsigned tag = U32(otf_off, 0);
-	struct otf otf_cur = {otf_otf, otf_off};
+	struct otf otf_cur = {otf_otf, otf_off, {0}};
 	struct otf *otf = &otf_cur;
 	if (tag != 0x00010000 && tag != 0x4F54544F)
 		return 1;
