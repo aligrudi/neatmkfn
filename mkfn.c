@@ -232,8 +232,8 @@ int main(int argc, char *argv[])
 			mkfn_warn = 1;
 			break;
 		default:
-			printf("%s", usage);
-			return 0;
+			fprintf(stderr, "%s", usage);
+			return 1;
 		}
 	}
 	trfn_init();
