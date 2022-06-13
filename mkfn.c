@@ -19,6 +19,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+#endif
 #include "mkfn.h"
 
 #define LEN(a)		((sizeof(a) / sizeof((a)[0])))
@@ -95,6 +99,8 @@ int mkfn_script(char *script, int nscripts)
 /* return 1 if the given language is to be included */
 int mkfn_lang(char *lang, int nlangs)
 {
+	/* not used */
+	(void) nlangs;
 	if (!mkfn_langs)
 		return 1;
 	if (!lang)
@@ -125,7 +131,7 @@ int mkfn_font(char *font)
 int mkfn_featrank(char *scrp, char *feat)
 {
 	static char **order;
-	int i;
+	size_t i;
 	if (!order || strcmp(scrp, order[0])) {
 		order = NULL;
 		for (i = 0; i < LEN(scriptorder); i++)
@@ -236,6 +242,9 @@ int main(int argc, char *argv[])
 			return 1;
 		}
 	}
+#ifdef _WIN32
+	_setmode(_fileno(stdin), _O_BINARY);
+#endif
 	trfn_init();
 	if ((afm ? afm_read() : otf_read())) {
 		fprintf(stderr, "neatmkfn: cannot parse the font\n");
