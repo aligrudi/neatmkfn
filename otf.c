@@ -843,18 +843,20 @@ static int otf_featrec(struct otf *otf, void *gtab, void *featrec,
 {
 	void *feats = gtab + U16(gtab, 6);
 	void *feat = feats + U16(featrec, 4);
+	char ftag[8] = "";
 	int n = U16(feat, 2);
 	int i, j;
+	memcpy(ftag, featrec, 4);
 	for (i = 0; i < n; i++) {
 		int lookup = U16(feat, 4 + 2 * i);	/* lookup index */
 		/* do not store features common to all languages in a script */
 		for (j = 0; j < lookups_n; j++)
 			if (lookups[j].lookup == lookup && !lookups[j].lang[0])
-				if (!strcmp(lookups[j].scrp, stag))
+				if (!strcmp(lookups[j].scrp, stag) &&
+						!strcmp(lookups[j].feat, ftag))
 					break;
 		if (j == lookups_n) {
-			memcpy(lookups[j].feat, featrec, 4);
-			lookups[j].feat[4] = '\0';
+			strcpy(lookups[j].feat, ftag);
 			strcpy(lookups[j].scrp, stag);
 			strcpy(lookups[j].lang, ltag);
 			lookups[j].lookup = U16(feat, 4 + 2 * i);
