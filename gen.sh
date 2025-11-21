@@ -1,11 +1,11 @@
 #!/bin/sh
 # Generate a Neatroff output device
 
-FP="/path/to/gs/fonts"		# ghostscript fonts directory; should be in GS_FONTPATH
-TP="/path/to/font/devutf"	# output device directory
-RES="720"			# device resolution
-SCR="-Slatn,arab"		# scripts to include
-LIGIGN="\(ct\|st\|sp\|Rp\)"	# pattern of ligatures to ignore
+FP="${MKFN_FP:-/path/to/gs/fonts}"	# ghostscript fonts directory; should be in GS_FONTPATH
+TP="${MKFN_TP:-/path/to/font/devutf}"	# output device directory
+RES="${MKFN_RES:-720}"			# device resolution
+SCR="${MKFN_SCR:--Slatn,arab}"		# scripts to include
+LIGIGN="\(ct\|st\|sp\|Rp\)"		# pattern of ligatures to ignore
 
 test -n "$1" && FP="$1"
 test -n "$2" && TP="$2"
@@ -21,9 +21,9 @@ echo "unitwidth 10" >>"$TP/DESC"
 # afmconv troff_name font_path extra_mktrfn_options
 afmconv() {
 	echo $1
-	T1="`dirname \"$2\"`/`basename \"$2\" .afm`.t1"
-	test -f "$T1" || T1="`dirname \"$2\"`/`basename \"$2\" .afm`.pfa"
-	test -f "$T1" || T1="`dirname \"$2\"`/`basename \"$2\" .afm`.pfb"
+	T1="$(dirname \"$2\")/$(basename \"$2\" .afm).t1"
+	test -f "$T1" || T1="$(dirname \"$2\")/$(basename \"$2\" .afm).pfa"
+	test -f "$T1" || T1="$(dirname \"$2\")/$(basename \"$2\" .afm).pfb"
 	cat "$2" | ./mkfn -a -b -r$RES -t$1 -f "$T1" $3 $4 $5 $6 $7 | \
 		sed "/^ligatures /s/ $LIGIGN//g" >"$TP/$1"
 }
