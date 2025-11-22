@@ -21,9 +21,9 @@ echo "unitwidth 10" >>"$TP/DESC"
 # afmconv troff_name font_path extra_mktrfn_options
 afmconv() {
 	echo $1
-	T1="$(dirname \"$2\")/$(basename \"$2\" .afm).t1"
-	test -f "$T1" || T1="$(dirname \"$2\")/$(basename \"$2\" .afm).pfa"
-	test -f "$T1" || T1="$(dirname \"$2\")/$(basename \"$2\" .afm).pfb"
+	T1="`dirname \"$2\"`/`basename \"$2\" .afm`.t1"
+	test -f "$T1" || T1="`dirname \"$2\"`/`basename \"$2\" .afm`.pfa"
+	test -f "$T1" || T1="`dirname \"$2\"`/`basename \"$2\" .afm`.pfb"
 	cat "$2" | ./mkfn -a -b -r$RES -t$1 -f "$T1" $3 $4 $5 $6 $7 | \
 		sed "/^ligatures /s/ $LIGIGN//g" >"$TP/$1"
 }
