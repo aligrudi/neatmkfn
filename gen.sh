@@ -15,7 +15,7 @@ mkdir -p "$TP"
 echo "fonts 10 R I B BI CR HR HI HB S1 S" >"$TP/DESC"
 echo "res $RES" >>"$TP/DESC"
 echo "hor 1" >>"$TP/DESC"
-echo "ver 1" >>"$TP/DESC"
+echo "vert 1" >>"$TP/DESC"
 echo "unitwidth 10" >>"$TP/DESC"
 
 # afmconv troff_name font_path extra_mktrfn_options
