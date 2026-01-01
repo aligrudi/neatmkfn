@@ -481,9 +481,9 @@ static void otf_gpostype3(struct otf *otf, void *sub, char *feat)
 	ogrp = ggrp_coverage(ocov, ocnt);
 	free(icov);
 	free(ocov);
+	printf("gsec %d\n", sec);
 	for (i = 0; i < n; i++) {
 		int prev = U16(sub, 6 + 4 * i);
-		int next = U16(sub, 6 + 4 * i + 2);
 		if (prev) {
 			int dx = -uwid(S16(sub, prev + 2));
 			int dy = -uwid(S16(sub, prev + 4));
@@ -493,6 +493,10 @@ static void otf_gpostype3(struct otf *otf, void *sub, char *feat)
 				feat, igrp, glyph_name[cov[i]],
 				0, 0, dx, dy);
 		}
+	}
+	printf("gsec %d\n", sec + 1);
+	for (i = 0; i < n; i++) {
+		int next = U16(sub, 6 + 4 * i + 2);
 		if (next) {
 			int dx = uwid(S16(sub, next + 2)) - uwid(glyph_wid[cov[i]]);
 			int dy = uwid(S16(sub, next + 4));
