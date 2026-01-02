@@ -64,6 +64,16 @@ static int otf_r2l(char *feat)
 	return !strcmp("arab", scrp) || !strcmp("hebr", scrp);
 }
 
+/* return the name of a glyph, or its index, it the name is long */
+static char *gname(int id)
+{
+	static char str[16];
+	if (strlen(glyph_name[id]) < 4)
+		return glyph_name[id];
+	sprintf(str, "%d", id);
+	return str;
+}
+
 /* report unsupported otf tables */
 static void otf_unsupported(char *sub, int type, int fmt)
 {
@@ -375,7 +385,7 @@ static void otf_gpostype1(struct otf *otf, void *sub, char *feat)
 		for (i = 0; i < ncov; i++) {
 			if (valuerecord_small(vfmt, sub + 6))
 				continue;
-			printf("gpos %s 1 %s", feat, glyph_name[cov[i]]);
+			printf("1 %s", gname(cov[i]));
 			valuerecord_print(vfmt, sub + 6);
 			printf("\n");
 		}
@@ -385,7 +395,7 @@ static void otf_gpostype1(struct otf *otf, void *sub, char *feat)
 		for (i = 0; i < nvals; i++) {
 			if (valuerecord_small(vfmt, sub + 6))
 				continue;
-			printf("gpos %s 1 %s", feat, glyph_name[cov[i]]);
+			printf("1 %s", gname(cov[i]));
 			valuerecord_print(vfmt, sub + 8 + i * vlen);
 			printf("\n");
 		}
@@ -416,10 +426,9 @@ static void otf_gpostype2(struct otf *otf, void *sub, char *feat)
 				if (valuerecord_small(vfmt1, c2 + fmtoff1) &&
 					valuerecord_small(vfmt2, c2 + fmtoff2))
 					continue;
-				printf("gpos %s 2", feat);
-				printf(" %s", glyph_name[cov[i]]);
+				printf("2 %s", gname(cov[i]));
 				valuerecord_print(vfmt1, c2 + fmtoff1);
-				printf(" %s", glyph_name[second]);
+				printf(" %s", gname(second));
 				valuerecord_print(vfmt2, c2 + fmtoff2);
 				printf("\n");
 			}
@@ -445,8 +454,7 @@ static void otf_gpostype2(struct otf *otf, void *sub, char *feat)
 				if (valuerecord_small(vfmt1, sub + fmtoff1) &&
 					valuerecord_small(vfmt2, sub + fmtoff2))
 					continue;
-				printf("gpos %s %d", feat, 2);
-				printf(" @%d", grp1[i]);
+				printf("2 @%d", grp1[i]);
 				valuerecord_print(vfmt1, sub + fmtoff1);
 				printf(" @%d", grp2[j]);
 				valuerecord_print(vfmt2, sub + fmtoff2);
@@ -481,7 +489,7 @@ static void otf_gpostype3(struct otf *otf, void *sub, char *feat)
 	ogrp = ggrp_coverage(ocov, ocnt);
 	free(icov);
 	free(ocov);
-	printf("gsec %d\n", sec);
+	printf("gsec %d gpos %s\n", sec, feat);
 	for (i = 0; i < n; i++) {
 		int prev = U16(sub, 6 + 4 * i);
 		if (prev) {
@@ -489,12 +497,11 @@ static void otf_gpostype3(struct otf *otf, void *sub, char *feat)
 			int dy = -uwid(S16(sub, prev + 4));
 			if (otf_r2l(feat))
 				dx += uwid(glyph_wid[cov[i]]);
-			printf("gpos %s 2 @%d %s:%+d%+d%+d%+d\n",
-				feat, igrp, glyph_name[cov[i]],
-				0, 0, dx, dy);
+			printf("2 @%d %s:%+d%+d%+d%+d\n",
+				igrp, gname(cov[i]), 0, 0, dx, dy);
 		}
 	}
-	printf("gsec %d\n", sec + 1);
+	printf("gsec %d gpos %s\n", sec + 1, feat);
 	for (i = 0; i < n; i++) {
 		int next = U16(sub, 6 + 4 * i + 2);
 		if (next) {
@@ -503,9 +510,8 @@ static void otf_gpostype3(struct otf *otf, void *sub, char *feat)
 			if (otf_r2l(feat)) {
 				dx += uwid(glyph_wid[cov[i]]);
 			}
-			printf("gpos %s 2 %s @%d:%+d%+d%+d%+d\n",
-				feat, glyph_name[cov[i]], ogrp,
-				0, 0, dx, dy);
+			printf("2 %s @%d:%+d%+d%+d%+d\n",
+				gname(cov[i]), ogrp, 0, 0, dx, dy);
 		}
 	}
 	free(cov);
@@ -545,7 +551,7 @@ static void otf_gpostype4(struct otf *otf, void *sub, char *feat)
 		free(grp);
 	}
 	/* GPOS rules for each mark after base glyphs */
-	printf("gsec %d\n", sec);
+	printf("gsec %d gpos %s\n", sec, feat);
 	for (i = 0; i < mcnt; i++) {
 		void *mark = marks + U16(marks, 2 + 4 * i + 2);	/* mark anchor */
 		int dx = -uwid(S16(mark, 2));
@@ -554,11 +560,11 @@ static void otf_gpostype4(struct otf *otf, void *sub, char *feat)
 			dx += uwid(glyph_wid[mcov[i]]);
 			dy = -dy;
 		}
-		printf("gpos %s 2 @%d %s:%+d%+d%+d%+d\n",
-			feat, bgrp, glyph_name[mcov[i]], dx, dy, 0, 0);
+		printf("2 @%d %s:%+d%+d%+d%+d\n",
+			bgrp, gname(mcov[i]), dx, dy, 0, 0);
 	}
 	/* GPOS rules for each base glyph before a mark */
-	printf("gsec %d\n", sec + 1);
+	printf("gsec %d gpos %s\n", sec + 1, feat);
 	for (i = 0; i < bcnt; i++) {
 		for (j = 0; j < ccnt; j++) {
 			void *base = bases + U16(bases, 2 + ccnt * 2 * i + 2 * j);
@@ -568,8 +574,8 @@ static void otf_gpostype4(struct otf *otf, void *sub, char *feat)
 				dx += uwid(glyph_wid[bcov[i]]);
 				dy = -dy;
 			}
-			printf("gpos %s 2 %s @%d:%+d%+d%+d%+d\n",
-				feat, glyph_name[bcov[i]], cgrp[j], dx, dy, 0, 0);
+			printf("2 %s @%d:%+d%+d%+d%+d\n",
+				gname(bcov[i]), cgrp[j], dx, dy, 0, 0);
 		}
 	}
 	free(mcov);
@@ -611,7 +617,7 @@ static void otf_gpostype5(struct otf *otf, void *sub, char *feat)
 		free(grp);
 	}
 	/* GPOS rules for each mark after a ligature */
-	printf("gsec %d\n", sec);
+	printf("gsec %d gpos %s\n", sec, feat);
 	for (i = 0; i < mcnt; i++) {
 		void *mark = marks + U16(marks, 2 + 4 * i + 2);	/* mark anchor */
 		int dx = -uwid(S16(mark, 2));
@@ -620,10 +626,10 @@ static void otf_gpostype5(struct otf *otf, void *sub, char *feat)
 			dx += uwid(glyph_wid[mcov[i]]);
 			dy = -dy;
 		}
-		printf("gpos %s 2 @%d %s:%+d%+d%+d%+d\n",
-			feat, lgrp, glyph_name[mcov[i]], dx, dy, 0, 0);
+		printf("2 @%d %s:%+d%+d%+d%+d\n",
+			lgrp, gname(mcov[i]), dx, dy, 0, 0);
 	}
-	printf("gsec %d\n", sec + 1);
+	printf("gsec %d gpos %s\n", sec + 1, feat);
 	/* GPOS rules for each ligature before a mark */
 	for (i = 0; i < lcnt; i++) {
 		void *ligattach = ligas + U16(ligas, 2 + 2 * i);
@@ -642,8 +648,8 @@ static void otf_gpostype5(struct otf *otf, void *sub, char *feat)
 				dx += uwid(glyph_wid[lcov[i]]);
 				dy = -dy;
 			}
-			printf("gpos %s 2 %s @%d:%+d%+d%+d%+d\n",
-				feat, glyph_name[lcov[i]], cgrp[j], dx, dy, 0, 0);
+			printf("2 %s @%d:%+d%+d%+d%+d\n",
+				gname(lcov[i]), cgrp[j], dx, dy, 0, 0);
 		}
 	}
 	free(mcov);
@@ -699,9 +705,10 @@ static void otf_gsubtype1(struct otf *otf, void *sub, char *feat, struct gctx *c
 			int dst = cov[i] + S16(sub, 4);
 			if (dst >= glyph_n || dst < 0)
 				continue;
-			printf("gsub %s %d", feat, 2 + gctx_len(ctx, 1));
+			printf("%d", 2 + gctx_len(ctx, 1));
 			gctx_backtrack(ctx);
-			printf(" -%s +%s", glyph_name[cov[i]], glyph_name[dst]);
+			printf(" -%s", gname(cov[i]));
+			printf(" +%s", gname(dst));
 			gctx_lookahead(ctx, 1);
 			printf("\n");
 		}
@@ -709,10 +716,10 @@ static void otf_gsubtype1(struct otf *otf, void *sub, char *feat, struct gctx *c
 	if (fmt == 2) {
 		int n = U16(sub, 4);
 		for (i = 0; i < n; i++) {
-			printf("gsub %s %d", feat, 2 + gctx_len(ctx, 1));
+			printf("%d", 2 + gctx_len(ctx, 1));
 			gctx_backtrack(ctx);
-			printf(" -%s +%s", glyph_name[cov[i]],
-				glyph_name[U16(sub, 6 + 2 * i)]);
+			printf(" -%s", gname(cov[i]));
+			printf(" +%s", gname(U16(sub, 6 + 2 * i)));
 			gctx_lookahead(ctx, 1);
 			printf("\n");
 		}
@@ -734,10 +741,10 @@ static void otf_gsubtype3(struct otf *otf, void *sub, char *feat, struct gctx *c
 		void *alt = sub + U16(sub, 6 + 2 * i);
 		int nalt = U16(alt, 0);
 		for (j = 0; j < nalt; j++) {
-			printf("gsub %s %d", feat, 2 + gctx_len(ctx, 1));
+			printf("%d", 2 + gctx_len(ctx, 1));
 			gctx_backtrack(ctx);
-			printf(" -%s +%s", glyph_name[cov[i]],
-				glyph_name[U16(alt, 2 + 2 * j)]);
+			printf(" -%s", gname(cov[i]));
+			printf(" +%s", gname(U16(alt, 2 + 2 * j)));
 			gctx_lookahead(ctx, 1);
 			printf("\n");
 		}
@@ -761,12 +768,12 @@ static void otf_gsubtype4(struct otf *otf, void *sub, char *feat, struct gctx *c
 		for (j = 0; j < nset; j++) {
 			void *lig = set + U16(set, 2 + 2 * j);
 			int nlig = U16(lig, 2);
-			printf("gsub %s %d", feat, nlig + 1 + gctx_len(ctx, nlig));
+			printf("%d", nlig + 1 + gctx_len(ctx, nlig));
 			gctx_backtrack(ctx);
-			printf(" -%s", glyph_name[cov[i]]);
+			printf(" -%s", gname(cov[i]));
 			for (k = 0; k < nlig - 1; k++)
-				printf(" -%s", glyph_name[U16(lig, 4 + 2 * k)]);
-			printf(" +%s", glyph_name[U16(lig, 0)]);
+				printf(" -%s", gname(U16(lig, 4 + 2 * k)));
+			printf(" +%s", gname(U16(lig, 0)));
 			gctx_lookahead(ctx, nlig);
 			printf("\n");
 		}
@@ -956,7 +963,7 @@ static void otf_gpos(struct otf *otf, void *gpos)
 		int ntabs = U16(lookup, 4);
 		char *tag = lookuptag(&lookups[i]);
 		sec = (i + 1) * 10;
-		printf("gsec %d %s\n", sec, tag);
+		printf("gsec %d gpos %s\n", sec, tag);
 		for (j = 0; j < ntabs; j++) {
 			void *tab = lookup + U16(lookup, 6 + 2 * j);
 			int type = ltype;
@@ -1001,7 +1008,7 @@ static void otf_gsub(struct otf *otf, void *gsub)
 		int ntabs = U16(lookup, 4);
 		char *tag = lookuptag(&lookups[i]);
 		sec = (i + 1) * 10;
-		printf("gsec %d %s\n", sec, tag);
+		printf("gsec %d gsub %s\n", sec, tag);
 		for (j = 0; j < ntabs; j++) {
 			void *tab = lookup + U16(lookup, 6 + 2 * j);
 			int type = ltype;
@@ -1301,7 +1308,7 @@ static int ggrp_make(int *src, int n)
 		ggrp_g[id][i] = src[i];
 	printf("ggrp %d %d", id, n);
 	for (i = 0; i < n; i++)
-		printf(" %s", glyph_name[src[i]]);
+		printf(" %s", gname(src[i]));
 	printf("\n");
 	return id;
 }
