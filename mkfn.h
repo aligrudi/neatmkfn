@@ -24,6 +24,7 @@ extern int mkfn_special;	/* special flag */
 extern int mkfn_bbox;		/* include bounding box */
 extern int mkfn_noligs;		/* suppress ligatures */
 extern int mkfn_pos;		/* include glyph positions */
+extern int mkfn_byname;		/* always reference glyphs by name */
 extern int mkfn_dry;		/* generate no output */
 
 /* variable length string buffer */

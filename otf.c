@@ -68,7 +68,7 @@ static int otf_r2l(char *feat)
 static char *gname(int id)
 {
 	static char str[16];
-	if (strlen(glyph_name[id]) < 4)
+	if (mkfn_byname || strlen(glyph_name[id]) < 4)
 		return glyph_name[id];
 	sprintf(str, "%d", id);
 	return str;

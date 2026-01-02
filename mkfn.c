@@ -37,6 +37,7 @@ int mkfn_special;		/* special flag */
 int mkfn_bbox;			/* include bounding box */
 int mkfn_noligs;		/* suppress ligatures */
 int mkfn_pos = 1;		/* include glyph positions */
+int mkfn_byname;		/* always reference glyphs by name */
 int mkfn_dry;			/* generate no output */
 
 /* OpenType specifies a specific feature order for different scripts */
@@ -172,6 +173,7 @@ static char *usage =
 	"  -b      \tinclude glyph bounding boxes\n"
 	"  -l      \tsuppress the ligatures line\n"
 	"  -n      \tsuppress glyph positions\n"
+	"  -g      \talways reference glyphs by name in OTF rules\n"
 	"  -S scrs \tcomma-separated list of scripts to include (list to list)\n"
 	"  -L langs\tcomma-separated list of languages to include (list to list)\n"
 	"  -F font \tfont name or index in a font collection (list to list)\n"
@@ -195,6 +197,9 @@ int main(int argc, char *argv[])
 		case 'F':
 			mkfn_subfont = argv[i][2] ? argv[i] + 2 : argv[++i];
 			mkfn_dry = !strcmp("list", mkfn_subfont);
+			break;
+		case 'g':
+			mkfn_byname = 1;
 			break;
 		case 'k':
 			mkfn_kmin = atoi(argv[i][2] ? argv[i] + 2 : argv[++i]);
