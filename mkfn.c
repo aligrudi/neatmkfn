@@ -160,7 +160,7 @@ int otf_read(void);
 int afm_read(void);
 
 static char *usage =
-	"Usage: mktrfn [options] <input >output\n"
+	"Usage: mkfn [options] <input >output\n"
 	"Options:\n"
 	"  -a      \tread an AFM file (default)\n"
 	"  -o      \tread a TTF or an OTF file\n"
